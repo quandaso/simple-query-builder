@@ -34,8 +34,10 @@ class Queryable
     {
         if ($db instanceof \PDO) {
             $this->_pdo = $db;
+            $this->_pdo->setAttribute(\PDO::ATTR_ERRMODE, \PDO::ERRMODE_EXCEPTION);
         } else if (isset ($db, $username, $password)) {
             $this->_pdo = new \PDO("mysql:host=localhost;dbname=$db;charset=utf8mb4", $username, $password);
+            $this->_pdo->setAttribute(\PDO::ATTR_ERRMODE, \PDO::ERRMODE_EXCEPTION);
         }
     }
 
