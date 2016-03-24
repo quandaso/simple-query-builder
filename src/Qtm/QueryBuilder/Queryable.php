@@ -306,7 +306,7 @@ class Queryable
 
     /**
      * @param array $data
-     * @return string
+     * @return int
      * @throws \Exception
      */
     public function update(array $data)
@@ -339,7 +339,7 @@ class Queryable
 
     /**
      * @param $data
-     * @return string
+     * @return int
      * @throws \Exception
      */
     public function insert($data)
@@ -363,7 +363,36 @@ class Queryable
             'VALUES(' . implode(',', $valueStates) . ')',
         );
 
-        return trim(implode(' ', $query));
+        $this->_lastSql = trim(implode(' ', $query));
+        $this->_stmt = $this->_pdo->prepare($this->_lastSql);
+        $this->bindValues();
+        $this->_stmt->execute();
+
+        return $this->_stmt->rowCount();
+    }
+
+    /**
+     * @return int
+     * @throws \Exception
+     */
+    public function delete()
+    {
+        if (empty ($this->_table)) {
+            throw new \Exception('Table name is not specified');
+        }
+
+
+        $query = array (
+            'DELETE FROM ' . self::quoteColumn($this->_table),
+            $this->getWhereState()
+        );
+
+        $this->_lastSql = trim(implode(' ', $query));
+        $this->_stmt = $this->_pdo->prepare($this->_lastSql);
+        $this->bindValues();
+        $this->_stmt->execute();
+
+        return $this->_stmt->rowCount();
     }
 
     /**

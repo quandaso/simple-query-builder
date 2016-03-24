@@ -6,8 +6,8 @@ use \Qtm\QueryBuilder\Queryable;
 $db = new Queryable('bigcoin_rebuild', 'root', 'quantm');
 
 $r = $db->table('user_test')
-    ->where('id', '>', 1)
-    ->update(['username'=> 'fuck']);
+->where('id', '=', 1)
+    ->update(['username' => null, 'email' => 'quantm.tb@gmail.com', 'json_data' => null]);
 
 echo "\n";
 echo $db->getLastSql();
