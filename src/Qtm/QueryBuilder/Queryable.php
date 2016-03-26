@@ -27,9 +27,19 @@ class Queryable
         '>=' => true,
         '<=' => true,
         '=' => true,
-        '!=' => true
+        '!=' => true,
+        '<>' => true,
+        'IN' => true,
+        'LIKE' => true,
+        'BETWEEN' => true
     );
 
+    /**
+     * Queryable constructor.
+     * @param null $db
+     * @param null $username
+     * @param null $password
+     */
     public function __construct($db = null, $username = null, $password = null)
     {
         if ($db instanceof \PDO) {
@@ -47,10 +57,13 @@ class Queryable
     public function from()
     {
         $this->initQuery();
-        $this->fromStates = self::flatArgs(func_get_args());
+        $this->fromStates = self::flattenArray(func_get_args());
         return $this;
     }
 
+    /**
+     * Resets all query states
+     */
     private function initQuery()
     {
         $this->_lastSql = null;
@@ -83,7 +96,7 @@ class Queryable
      */
     public function select()
     {
-        $this->selectFields = self::flatArgs(func_get_args());
+        $this->selectFields = self::flattenArray(func_get_args());
         return $this;
     }
 
@@ -95,7 +108,7 @@ class Queryable
      * @return $this
      * @throws \Exception
      */
-    private function buildWhereQuery($type = 'AND', $field, $opt = null, $value = null)
+    private function addWhereQuery($type = 'AND', $field, $opt = null, $value = null)
     {
         if ($field instanceof \Closure) {
 
@@ -109,14 +122,13 @@ class Queryable
             return $this;
         }
 
-        if ($value === null) {
+        if (func_num_args() === 3) {
             $value = $opt;
             $opt = '=';
         } else {
             if (!isset ($this->operators[$opt])) {
                 throw new \Exception('Invalid operator: ' . $opt);
             }
-
         }
 
         $this->whereStates[] = array(
@@ -129,6 +141,10 @@ class Queryable
         return $this;
     }
 
+    /**
+     * @param $field
+     * @return $this
+     */
     public function orWhereNotNull($field)
     {
         $this->whereStates[] = array(
@@ -142,6 +158,10 @@ class Queryable
         return $this;
     }
 
+    /**
+     * @param $field
+     * @return $this
+     */
     public function orWhereNull($field)
     {
         $this->whereStates[] = array(
@@ -155,6 +175,10 @@ class Queryable
         return $this;
     }
 
+    /**
+     * @param $field
+     * @return $this
+     */
     public function whereNotNull($field)
     {
         $this->whereStates[] = array(
@@ -168,6 +192,10 @@ class Queryable
         return $this;
     }
 
+    /**
+     * @param $field
+     * @return $this
+     */
     public function whereNull($field)
     {
         $this->whereStates[] = array(
@@ -183,14 +211,53 @@ class Queryable
 
     /**
      * @param $field
-     * @param null $opt
-     * @param null $value
-     * @return Queryable
+     * @param $fromValue
+     * @param $toValue
+     * @return $this
      * @throws \Exception
      */
-    public function where($field, $opt = null, $value = null)
+    public function whereBetween($field, $fromValue, $toValue)
     {
-        return $this->buildWhereQuery('AND', $field, $opt, $value);
+        $this->addWhereQuery('AND', $field, 'BETWEEN', [$fromValue, $toValue]);
+        return $this;
+    }
+
+
+    /**
+     * @param $field
+     * @param $fromValue
+     * @param $toValue
+     * @return $this
+     * @throws \Exception
+     */
+    public function orWhereBetween($field, $fromValue, $toValue)
+    {
+        $this->addWhereQuery('OR', $field, 'BETWEEN', [$fromValue, $toValue]);
+        return $this;
+    }
+
+    /**
+     * @param $field
+     * @param array $values
+     * @return $this
+     * @throws \Exception
+     */
+    public function whereIn($field, array $values)
+    {
+        $this->addWhereQuery('AND', $field, 'IN', $values);
+        return $this;
+    }
+
+    /**
+     * @param $field
+     * @param array $values
+     * @return $this
+     * @throws \Exception
+     */
+    public function orWhereIn($field, array $values)
+    {
+        $this->addWhereQuery('OR', $field, 'IN', $values);
+        return $this;
     }
 
     /**
@@ -198,11 +265,29 @@ class Queryable
      * @param null $opt
      * @param null $value
      * @return Queryable
-     * @throws \Exception
+     */
+    public function where($field, $opt = null, $value = null)
+    {
+        if (func_num_args() === 2) {
+            return $this->addWhereQuery('AND', $field, $opt);
+        }
+
+        return $this->addWhereQuery('AND', $field, $opt, $value);
+    }
+
+    /**
+     * @param $field
+     * @param null $opt
+     * @param null $value
+     * @return Queryable
      */
     public function orWhere($field, $opt = null, $value = null)
     {
-        return $this->buildWhereQuery('OR', $field, $opt, $value);
+        if (func_num_args() === 2) {
+            return $this->addWhereQuery('OR', $field, $opt);
+        }
+
+        return $this->addWhereQuery('OR', $field, $opt, $value);
     }
 
     /**
@@ -383,7 +468,6 @@ class Queryable
             throw new \Exception('Table name is not specified');
         }
 
-
         $query = array (
             'DELETE FROM ' . self::quoteColumn($this->_table),
             $this->getWhereState()
@@ -423,6 +507,7 @@ class Queryable
     /**
      * @param $hasWhere
      * @return string
+     * @throws \Exception
      */
     private function getWhereState($hasWhere = true)
     {
@@ -435,15 +520,17 @@ class Queryable
         foreach ($this->whereStates as $i => $where) {
             $first = count($whereStates) === 0;
 
+            if (isset ($where['field'])) {
+                $where['field'] = self::quoteColumn($where['field']);
+            }
+
+            $statement = '';
+
             if (isset ($where['query'])) {
                 $query = $where['query'](new static());
 
                 if (!empty ($query->whereStates)) {
-                    if ($first) {
-                        $whereStates[] = '(' . $query->getWhereState(false) . ')';
-                    } else {
-                        $whereStates[] = $where['type'] . ' (' . $query->getWhereState(false) . ')';
-                    }
+                    $statement = '(' . $query->getWhereState(false) . ')';
 
                     foreach ($query->values as $v) {
                         $this->values[] = $v;
@@ -451,20 +538,41 @@ class Queryable
                 }
 
             } else if (isset ($where['nullQuery'])) {
-                if ($first) {
-                    $whereStates[] = self::quoteColumn($where['field']) . ' ' . $where['operator'];
-                } else {
-                    $whereStates[] = $where['type'] . ' ' . self::quoteColumn($where['field']) . ' ' . $where['operator'];
+                $statement = $where['field'] . ' ' . $where['operator'];
+            } else if (strtoupper($where['operator']) === 'BETWEEN') {
+                if (count($where['value']) < 2) {
+                    throw new \Exception ('Missing BETWEEN values');
                 }
-            } else {
-                $this->values[] = $where['value'];
 
-                if ($first) {
-                    $whereStates[] = self::quoteColumn($where['field']) . ' ' . $where['operator'] . ' ?';
-                } else {
-                    $whereStates[] = $where['type'] . ' ' . self::quoteColumn($where['field']) . ' ' . $where['operator'] . ' ?';
+                $statement = $where['field'] . ' BETWEEN ? AND ?';
+                $this->values[] = $where['value'][0];
+                $this->values[] = $where['value'][1];
+
+            } else if (strtoupper($where['operator']) === 'IN') {
+                if (!isset ($where['value'])) {
+                    throw new \Exception('Missing WHERE in values');
                 }
+
+                $where['value'] = self::flattenArray($where['value']);
+
+                $inValueSet = [];
+
+                foreach ($where['value'] as $v) {
+                    $this->values[] = $v;
+                    $inValueSet[] = '?';
+                }
+
+                $statement = $where['field'] . ' IN (' . implode(',', $inValueSet) . ')';
+            } else {
+                $statement = $where['field'] . ' ' . $where['operator'] . ' ?';
+                $this->values[] = $where['value'];
             }
+
+            if (!$first) {
+                $statement = $where['type'] . ' ' . $statement;
+            }
+
+            $whereStates[] = $statement;
         }
 
         return  $hasWhere ? 'WHERE ' . implode(' ', $whereStates) : implode(' ', $whereStates);
@@ -488,13 +596,56 @@ class Queryable
      */
     public function get()
     {
-        $this->_lastSql = $this->getSelectSql();
-        $this->_stmt = $this->_pdo->prepare($this->_lastSql);
-        $this->bindValues();
-        $this->_stmt->execute();
+        if ($this->_stmt === null) {
+            $this->query($this->getSelectSql(), $this->values);
+        }
+
         $results = $this->_stmt->fetchAll(\PDO::FETCH_ASSOC);
+        $this->_stmt = null;
+
         return $results;
     }
+
+    /**
+     * @return null | array
+     * @throws \Exception
+     */
+    public function first()
+    {
+        if ($this->_stmt === null) {
+            $this->limit(1);
+            $this->query($this->getSelectSql(), $this->values);
+        }
+
+        $results = $this->_stmt->fetchAll(\PDO::FETCH_ASSOC);
+
+        $this->_stmt = null;
+        return empty ($results) ? null : $results[0];
+    }
+
+    /**
+     * @return int
+     */
+    public function count()
+    {
+        return count($this->get());
+    }
+
+    /**
+     * @param $sql
+     * @param array $values
+     * @return $this
+     */
+    public function query($sql, $values = array())
+    {
+        $this->_lastSql = $sql;
+        $this->_stmt = $this->_pdo->prepare($sql);
+        $this->bindValues($values);
+        $this->_stmt->execute();
+
+        return $this;
+    }
+
 
     /**
      * @return null
@@ -504,12 +655,25 @@ class Queryable
         return $this->_lastSql;
     }
 
+    public function getBindValues()
+    {
+        return $this->values;
+    }
+
+
     /**
      * Binds values
+     * @param array | null $values
      */
-    private function bindValues()
+    private function bindValues($values = null)
     {
-        foreach ($this->values as $i => $value) {
+        if (is_array($values)) {
+            $_values = $values;
+        } else {
+            $_values = $this->values;
+        }
+
+        foreach ($_values as $i => $value) {
             if (is_string($value)) {
                 $this->_stmt->bindValue($i + 1, $value, \PDO::PARAM_STR);
             } else if (is_int($value)) {
@@ -526,12 +690,16 @@ class Queryable
      * @param $args
      * @return array
      */
-    private static function flatArgs($args)
+    private static function flattenArray($args)
     {
+        if (!is_array($args)) {
+            $args = [$args];
+        }
+
         $result = array();
         foreach ($args as $arg) {
             if (is_array($arg)) {
-                foreach (self::flatArgs($arg) as $v) {
+                foreach (self::flattenArray($arg) as $v) {
                     $result[] = $v;
                 }
             } else {
