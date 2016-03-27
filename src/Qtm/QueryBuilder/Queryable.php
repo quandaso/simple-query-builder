@@ -15,6 +15,7 @@ class Queryable
     private $_table = null;
     private $_stmt = null;
     private $_orderDirection = 'ASC';
+    private $fetchClass = 'array';
 
     private $fromStates = array();
     private $selectFields = array();
@@ -39,17 +40,24 @@ class Queryable
 
     /**
      * Queryable constructor.
-     * @param null $db
-     * @param null $username
-     * @param null $password
+     * @param null $config
+     * @param  $fetchClass
      */
-    public function __construct($db = null, $username = null, $password = null)
+    public function __construct($config = null, $fetchClass = 'array')
     {
-        if ($db instanceof \PDO) {
-            $this->_pdo = $db;
+        $this->fetchClass = $fetchClass;
+
+        if ($config instanceof \PDO) {
+            $this->_pdo = $config;
             $this->_pdo->setAttribute(\PDO::ATTR_ERRMODE, \PDO::ERRMODE_EXCEPTION);
-        } else if (isset ($db, $username, $password)) {
-            $this->_pdo = new \PDO("mysql:host=localhost;dbname=$db;charset=utf8mb4", $username, $password);
+        } else if (isset ($config['host'], $config['database'], $config['username'])) {
+            $db = $config['database'];
+            $host = $config['host'];
+            $username = $config['username'];
+            $port = isset ($config['port']) ? $config['port'] : 3306;
+            $password = isset ($config['password']) ? $config['password'] : '';
+
+            $this->_pdo = new \PDO("mysql:host=$host;port=$port;dbname=$db;charset=utf8mb4", $username, $password);
             $this->_pdo->setAttribute(\PDO::ATTR_ERRMODE, \PDO::ERRMODE_EXCEPTION);
         }
     }
@@ -85,12 +93,19 @@ class Queryable
     }
 
     /**
-     * @return static
+     * @param $table
+     * @return $this
+     * @throws \Exception
      */
     public function table($table)
     {
+        if (!is_string($table)) {
+            throw new \Exception('Table name must be a string');
+        }
+
         $this->initQuery();
         $this->_table = $table;
+        $this->fromStates = [$table];
         return $this;
     }
 
@@ -114,6 +129,9 @@ class Queryable
     private function addWhereQuery($type = 'AND', $field, $opt = null, $value = null)
     {
         if ($field instanceof \Closure) {
+            if ($opt !== null) {
+                throw new \Exception("$opt query can not be a callback");
+            }
 
             $callback = $field;
 
@@ -501,7 +519,7 @@ class Queryable
 
                 $where['value'] = self::flattenArray($where['value']);
 
-                $inValueSet = [];
+                $inValueSet = array();
 
                 foreach ($where['value'] as $v) {
                     $this->values[] = $v;
@@ -540,32 +558,44 @@ class Queryable
      * @return array
      * @throws \Exception
      */
-    public function get()
+    public function get($fetchClass = null)
     {
+        if (empty ($fetchClass)) {
+            $fetchClass = $this->fetchClass;
+        }
+
         if ($this->_stmt === null) {
             $this->query($this->toSql(), $this->values);
         }
 
-        $results = $this->_stmt->fetchAll(\PDO::FETCH_ASSOC);
+        $entries = $this->_stmt->fetchAll(\PDO::FETCH_ASSOC);
         $this->_stmt = null;
 
-        return $results;
+        if ($fetchClass === 'array')
+        {
+            return $entries;
+        } else if (is_string($fetchClass)) {
+            $result  = [];
+
+            foreach ($entries as $entry) {
+                $obj = new $fetchClass($entry);
+                $result[] = $obj;
+            }
+
+            return $result;
+        }
+
+        return $entries;
     }
 
     /**
      * @return null | array
      * @throws \Exception
      */
-    public function first()
+    public function first($fetchClass = null)
     {
-        if ($this->_stmt === null) {
-            $this->limit(1);
-            $this->query($this->toSql(), $this->values);
-        }
-
-        $results = $this->_stmt->fetchAll(\PDO::FETCH_ASSOC);
-
-        $this->_stmt = null;
+        $this->limit(1);
+        $results = $this->get();
         return empty ($results) ? null : $results[0];
     }
 

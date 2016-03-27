@@ -12,7 +12,14 @@ class QueryableTest extends \PHPUnit_Framework_TestCase
 
     public function testWhere()
     {
-        $db = new Queryable('bigcoin_rebuild', 'root', 'quantm');
+        $config = [
+            'host' => 'localhost',
+            'database' => 'bigcoin_rebuild',
+            'username' => 'root',
+            'password' => 'quantm'
+        ];
+
+        $db = new Queryable($config);
 
         // Generate where query
         $this->assertEquals(
@@ -21,16 +28,21 @@ class QueryableTest extends \PHPUnit_Framework_TestCase
         );
 
         $this->assertEquals(
-            'SELECT * FROM `user_test` LIMIT 10,10',
-            $db->from('user_test')->limit(10)->offset(10)->toSql()
+            'SELECT * FROM `user_test` GROUP BY `id` ORDER BY `email` DESC LIMIT 10,10',
+            $db->from('user_test')
+                ->limit(10)
+                ->offset(10)
+                ->groupBy('id')
+                ->orderBy('email', 'DESC')
+                ->toSql()
         );
 
         $this->assertEquals(
-            'SELECT `id`,`email` FROM `user_test` WHERE `id` = ?',
-            $db->from('user_test')->select('id', 'email')->where('id', 1)->toSql()
+            'SELECT `id`,`email` FROM `user_test` WHERE `id` = ? OR `id` >= ?',
+            $db->from('user_test')->select('id', 'email')->where('id', 1)->orWhere('id', '>=', 3)->toSql()
         );
 
-        $this->assertEquals([1], $db->getBindValues());
+        $this->assertEquals([1, 3], $db->getBindValues());
 
         // whereIn, whereNotIn
         $this->assertEquals(
@@ -73,15 +85,39 @@ class QueryableTest extends \PHPUnit_Framework_TestCase
 
         $this->assertEquals([1,3], $db->getBindValues());
 
+        // where null
         $this->assertEquals(
-            'SELECT `id` FROM `user_test` WHERE `id` LIKE ? OR `id` LIKE ?',
+            'SELECT `id` FROM `user_test` WHERE `status` IS NOT NULL AND `activated` IS NULL OR `id` IS NOT NULL',
 
             $db->from('user_test')
                 ->select('id')
-                ->whereLike('id', 1)
-                ->orWhereLike('id', 3)
+                ->whereNotNull('status')
+                ->whereNull('activated')
+                ->orWhereNotNull('id')
                 ->toSql()
         );
-        $this->assertEquals([1,3], $db->getBindValues());
+        $this->assertEquals([], $db->getBindValues());
+
+        // where callback
+        $this->assertEquals(
+            'SELECT `id` FROM `user_test` WHERE `activated` > ? AND (`status` IN (?,?,?) AND (`id` = ? OR `id` = ?))',
+
+            $db->from('user_test')
+                ->select('id')
+                ->where('activated', '>', 0)
+                ->where(function(Queryable $q) {
+                    $q->whereIn('status', [1,2,3])
+                        ->where(function(Queryable $q1) {
+                            $q1->where('id', 3)->orWhere('id', 4);
+                            return $q1;
+                        });
+
+                    return $q;
+                })->toSql()
+        );
+        $this->assertEquals([0, 1,2,3,3,4], $db->getBindValues());
+
+
+
     }
 }

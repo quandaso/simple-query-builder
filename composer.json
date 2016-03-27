@@ -5,7 +5,8 @@
 	"autoload": {
          "psr-4": {
             "Qtm\\": "src/Qtm"
-        }
+        },
+      "files": [ "src/functions.php" ]
     },
     "autoload-dev": {
       "psr-4": {
