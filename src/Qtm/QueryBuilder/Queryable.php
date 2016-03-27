@@ -20,6 +20,7 @@ class Queryable
     private $fromStates = array();
     private $selectFields = array();
     private $whereStates = array();
+    private $joinStates  = array();
     private $values = array();
 
     private $operators = array(
@@ -254,6 +255,38 @@ class Queryable
         return $this->addWhereQuery('OR', $field, $opt, $value);
     }
 
+    public function join($table, $rawOnCondition)
+    {
+        $this->joinStates[] = array(
+            'type' => 'INNER',
+            'table' => $table,
+            'on' => $rawOnCondition
+        );
+
+        return $this;
+    }
+
+    public function leftJoin($table, $rawOnCondition)
+    {
+        $this->joinStates[] = array(
+            'type' => 'LEFT',
+            'table' => $table,
+            'on' => $rawOnCondition
+        );
+
+        return $this;
+    }
+
+    public function rightJoin($table, $rawOnCondition)
+    {
+        $this->joinStates[] = array(
+            'type' => 'RIGHT',
+            'table' => $table,
+            'on' => $rawOnCondition
+        );
+        return $this;
+    }
+
     /**
      * @param $limit
      * @return $this
@@ -305,6 +338,23 @@ class Queryable
         return $this;
     }
 
+    private function getJoinState()
+    {
+        if (empty ($this->joinStates)) {
+            return  '';
+        }
+
+        $joins = array();
+
+        foreach ($this->joinStates as $join) {
+            $joins[] = $join['type'] . ' JOIN ' . self::quoteColumn($join['table']) . ' ON ' . $join['on'];
+        }
+
+        return implode(' ',$joins);
+    }
+
+
+
     /**
      * @return string
      */
@@ -346,6 +396,7 @@ class Queryable
         $query = array (
             $this->getSelectState(),
             $this->getFromState(),
+            $this->getJoinState(),
             $this->getWhereState(),
             $this->getGroupByState(),
             $this->getOrderByState(),
@@ -571,8 +622,7 @@ class Queryable
         $entries = $this->_stmt->fetchAll(\PDO::FETCH_ASSOC);
         $this->_stmt = null;
 
-        if ($fetchClass === 'array')
-        {
+        if ($fetchClass === 'array') {
             return $entries;
         } else if (is_string($fetchClass)) {
             $result  = [];
@@ -631,11 +681,21 @@ class Queryable
         return $this->_lastSql;
     }
 
+    /**
+     * @return array
+     */
     public function getBindValues()
     {
         return $this->values;
     }
 
+    public function raw($sql)
+    {
+        return (object) [
+            'rawQuery' => true,
+            'sql' => $sql
+        ];
+    }
 
     /**
      * Binds values
@@ -692,6 +752,12 @@ class Queryable
      */
     private static function quoteColumn($field)
     {
+        if (is_object($field)) {
+            if ($field->rawQuery === true) {
+                return $field->sql;
+            }
+        }
+
         if ($field === '*') {
             return $field;
         }

@@ -94,7 +94,7 @@ class Model implements \ArrayAccess, \JsonSerializable
      * @param $name
      * @return null
      */
-    public function get($name)
+    public function getAttr($name)
     {
         $getMethod = '_' . str_camel_case('get_' . $name, '_');
 
@@ -113,7 +113,7 @@ class Model implements \ArrayAccess, \JsonSerializable
      * @param $name
      * @param $value
      */
-    public function set($name, $value)
+    public function setAttr($name, $value)
     {
         $setMethod = '_' . str_camel_case('set_' . $name, '_');
 
@@ -139,7 +139,7 @@ class Model implements \ArrayAccess, \JsonSerializable
      */
     public function __get($name)
     {
-        return $this->get($name);
+        return $this->getAttr($name);
     }
 
     /**
@@ -150,7 +150,7 @@ class Model implements \ArrayAccess, \JsonSerializable
      */
     public function __set($name, $value)
     {
-        $this->set($name, $value);
+        $this->setAttr($name, $value);
     }
 
     /**
@@ -242,7 +242,7 @@ class Model implements \ArrayAccess, \JsonSerializable
         $_data = [];
 
         foreach ($this->_data as $name => $value) {
-            $_data[$name] = $this->get($name);
+            $_data[$name] = $this->getAttr($name);
         }
 
         return $_data;
@@ -270,7 +270,7 @@ class Model implements \ArrayAccess, \JsonSerializable
      */
     public function offsetSet($offset, $value)
     {
-        $this->set($offset, $value);
+        $this->setAttr($offset, $value);
     }
 
     /**
@@ -294,7 +294,7 @@ class Model implements \ArrayAccess, \JsonSerializable
      */
     public function offsetGet($offset)
     {
-        return $this->get($offset);
+        return $this->getAttr($offset);
     }
 
     /**
@@ -349,9 +349,7 @@ class Model implements \ArrayAccess, \JsonSerializable
         if (method_exists($obj->_db, $name)) {
             $obj->_db->table($obj->table);
 
-            call_user_func_array([$obj->_db, $name], $arguments);
-
-            return $obj->_db;
+            return call_user_func_array([$obj->_db, $name], $arguments);
         }
     }
 
