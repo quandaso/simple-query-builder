@@ -12,9 +12,8 @@ $db = new Queryable('bigcoin_rebuild', 'root', 'quantm');
 $db->table('user_test')->insert($user);
 $r = $db->from('user_test')
     ->select('id')
-    ->whereBetween('id', 1, 3)
-    ->orWhereIn('id', [3,4,5,6,7,8])
-    ->where('id', 'LIKE', 1)
+    ->whereLike('id', '1')
+    ->orWhereLike('id', 2)
     ->first();
 
 echo "\n";

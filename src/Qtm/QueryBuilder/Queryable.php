@@ -31,7 +31,10 @@ class Queryable
         '<>' => true,
         'IN' => true,
         'LIKE' => true,
-        'BETWEEN' => true
+        'BETWEEN' => true,
+        'NOT IN' => true,
+        'IS NULL' => true,
+        'IS NOT NULL' => true
     );
 
     /**
@@ -131,6 +134,8 @@ class Queryable
             }
         }
 
+        $opt = trim(strtoupper($opt));
+
         $this->whereStates[] = array(
             'type' => $type,
             'field' => $field,
@@ -141,123 +146,64 @@ class Queryable
         return $this;
     }
 
-    /**
-     * @param $field
-     * @return $this
-     */
     public function orWhereNotNull($field)
     {
-        $this->whereStates[] = array(
-            'type' => 'OR',
-            'field' => $field,
-            'operator' => 'IS NOT NULL',
-            'value' => null,
-            'nullQuery' => true
-        );
-
-        return $this;
+        return $this->addWhereQuery('OR', $field, 'IS NOT NULL', null);
     }
 
-    /**
-     * @param $field
-     * @return $this
-     */
     public function orWhereNull($field)
     {
-        $this->whereStates[] = array(
-            'type' => 'OR',
-            'field' => $field,
-            'operator' => 'IS NULL',
-            'value' => null,
-            'nullQuery' => true
-        );
-
-        return $this;
+        return $this->addWhereQuery('OR', $field, 'IS NULL', null);
     }
 
-    /**
-     * @param $field
-     * @return $this
-     */
     public function whereNotNull($field)
     {
-        $this->whereStates[] = array(
-            'type' => 'AND',
-            'field' => $field,
-            'operator' => 'IS NOT NULL',
-            'value' => null,
-            'nullQuery' => true
-        );
-
-        return $this;
+        return $this->addWhereQuery('AND', $field, 'IS NOT NULL', null);
     }
 
-    /**
-     * @param $field
-     * @return $this
-     */
     public function whereNull($field)
     {
-        $this->whereStates[] = array(
-            'type' => 'AND',
-            'field' => $field,
-            'operator' => 'IS NULL',
-            'value' => null,
-            'nullQuery' => true
-        );
-
-        return $this;
+        return $this->addWhereQuery('AND', $field, 'IS NULL', null);
     }
 
-    /**
-     * @param $field
-     * @param $fromValue
-     * @param $toValue
-     * @return $this
-     * @throws \Exception
-     */
     public function whereBetween($field, $fromValue, $toValue)
     {
-        $this->addWhereQuery('AND', $field, 'BETWEEN', [$fromValue, $toValue]);
-        return $this;
+        return $this->addWhereQuery('AND', $field, 'BETWEEN', [$fromValue, $toValue]);
     }
 
-
-    /**
-     * @param $field
-     * @param $fromValue
-     * @param $toValue
-     * @return $this
-     * @throws \Exception
-     */
     public function orWhereBetween($field, $fromValue, $toValue)
     {
-        $this->addWhereQuery('OR', $field, 'BETWEEN', [$fromValue, $toValue]);
-        return $this;
+        return $this->addWhereQuery('OR', $field, 'BETWEEN', [$fromValue, $toValue]);
     }
 
-    /**
-     * @param $field
-     * @param array $values
-     * @return $this
-     * @throws \Exception
-     */
     public function whereIn($field, array $values)
     {
-        $this->addWhereQuery('AND', $field, 'IN', $values);
-        return $this;
+        return $this->addWhereQuery('AND', $field, 'IN', $values);
     }
 
-    /**
-     * @param $field
-     * @param array $values
-     * @return $this
-     * @throws \Exception
-     */
+    public function whereNotIn($field, array $values)
+    {
+        return $this->addWhereQuery('AND', $field, 'NOT IN', $values);
+    }
+
+    public function orWhereNotIn($field, array $values)
+    {
+        return $this->addWhereQuery('OR', $field, 'NOT IN', $values);
+    }
+
+    public function whereLike($field, $value)
+    {
+        return $this->addWhereQuery('AND', $field, 'LIKE', $value);
+    }
+
+    public function orWhereLike($field, $value)
+    {
+        return $this->addWhereQuery('OR', $field, 'LIKE', $value);
+    }
+
     public function orWhereIn($field, array $values)
     {
-        $this->addWhereQuery('OR', $field, 'IN', $values);
-        return $this;
+        return $this->addWhereQuery('OR', $field, 'IN', $values);
     }
 
     /**
@@ -373,7 +319,7 @@ class Queryable
      * @return string
      * @throws \Exception
      */
-    public function getSelectSql()
+    public function toSql()
     {
         if (empty ($this->fromStates)) {
             throw new \Exception('Missing FROM statement');
@@ -537,9 +483,9 @@ class Queryable
                     }
                 }
 
-            } else if (isset ($where['nullQuery'])) {
+            } else if ($where['operator'] === 'IS NULL' || $where['operator'] === 'IS NOT NULL') {
                 $statement = $where['field'] . ' ' . $where['operator'];
-            } else if (strtoupper($where['operator']) === 'BETWEEN') {
+            } else if ($where['operator'] === 'BETWEEN') {
                 if (count($where['value']) < 2) {
                     throw new \Exception ('Missing BETWEEN values');
                 }
@@ -548,7 +494,7 @@ class Queryable
                 $this->values[] = $where['value'][0];
                 $this->values[] = $where['value'][1];
 
-            } else if (strtoupper($where['operator']) === 'IN') {
+            } else if ($where['operator'] === 'IN' || $where['operator'] === 'NOT IN') {
                 if (!isset ($where['value'])) {
                     throw new \Exception('Missing WHERE in values');
                 }
@@ -562,7 +508,7 @@ class Queryable
                     $inValueSet[] = '?';
                 }
 
-                $statement = $where['field'] . ' IN (' . implode(',', $inValueSet) . ')';
+                $statement = $where['field'] . ' ' . $where['operator'] . ' (' . implode(',', $inValueSet) . ')';
             } else {
                 $statement = $where['field'] . ' ' . $where['operator'] . ' ?';
                 $this->values[] = $where['value'];
@@ -597,7 +543,7 @@ class Queryable
     public function get()
     {
         if ($this->_stmt === null) {
-            $this->query($this->getSelectSql(), $this->values);
+            $this->query($this->toSql(), $this->values);
         }
 
         $results = $this->_stmt->fetchAll(\PDO::FETCH_ASSOC);
@@ -614,7 +560,7 @@ class Queryable
     {
         if ($this->_stmt === null) {
             $this->limit(1);
-            $this->query($this->getSelectSql(), $this->values);
+            $this->query($this->toSql(), $this->values);
         }
 
         $results = $this->_stmt->fetchAll(\PDO::FETCH_ASSOC);

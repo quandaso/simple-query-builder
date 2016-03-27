@@ -6,5 +6,10 @@
          "psr-4": {
             "Qtm\\": "src/Qtm"
         }
+    },
+    "autoload-dev": {
+      "psr-4": {
+        "QtmTest\\": "tests"
+      }
     }
 }

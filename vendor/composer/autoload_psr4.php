@@ -7,4 +7,5 @@ $baseDir = dirname($vendorDir);
 
 return array(
     'Qtm\\' => array($baseDir . '/src/Qtm'),
+    'QtmTest\\' => array($baseDir . '/tests'),
 );
