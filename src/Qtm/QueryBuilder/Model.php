@@ -40,13 +40,6 @@ class Model implements \ArrayAccess, \JsonSerializable
             $this->_fillableMap = array_flip($this->fillable);
         }
 
-        $config = [
-            'host' => 'localhost',
-            'database' => 'bigcoin_rebuild',
-            'username' => 'root',
-            'password' => 'quantm'
-        ];
-
         $this->_db = new Queryable($this->dbConfig, static::class);
 
         if (is_object($id)) {

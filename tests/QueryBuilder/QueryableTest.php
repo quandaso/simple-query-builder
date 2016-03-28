@@ -190,9 +190,5 @@ class QueryableTest extends AppTestCase
 
         $this->assertEquals([1], $db->getBindValues());
 
-
-
-
-
     }
 }
