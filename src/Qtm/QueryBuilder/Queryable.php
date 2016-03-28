@@ -810,26 +810,16 @@ class Queryable
         return "`".str_replace("`","``",$field)."`";
     }
 
-    /**
-     * @param $name
-     * @param $arguments
-     * @return mixed
-     */
     public function __call($name, $arguments)
     {
-        // TODO: Implement __call() method.
-
-        if (strpos($name, 'findBy') === 0) {
+        if (preg_match('/^(where|orWhere)(.+)/', $name, $match)) {
             if (count($arguments) === 0) {
                 throw new \Exception('Missing argument');
             }
 
-            $field = preg_replace('/^findBy/', '', $name);
-
-            if (!empty ($field)) {
-                $field = camel_case_to_underscore($field);
-                return $this->where($field, $arguments[0])->first();
-            }
+            $field = camel_case_to_underscore($match[2]);
+            $method = $match[1];
+            return $this->$method($field, $arguments[0]);
         }
     }
 

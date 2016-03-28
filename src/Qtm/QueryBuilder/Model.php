@@ -342,15 +342,40 @@ class Model implements \ArrayAccess, \JsonSerializable
     }
 
     /**
+     * @param $field
+     * @param $value
+     * @return mixed
+     */
+    public static function findBy($field, $value)
+    {
+        $obj = new static();
+        return $obj->_db->from($obj->table)->where($field, $value)->first();
+    }
+
+    /**
      * @param $name
      * @param $arguments
      * @return mixed
+     * @throws \Exception
      */
     public static function __callStatic($name, $arguments)
     {
         $obj = new static();
 
-        if (method_exists($obj->_db, $name) || strpos($name, 'findBy') === 0) {
+        if (strpos($name, 'findBy') === 0) {
+            if (count($arguments) === 0) {
+                throw new \Exception('Missing argument');
+            }
+
+            $field = preg_replace('/^findBy/', '', $name);
+
+            if (!empty ($field)) {
+                $field = camel_case_to_underscore($field);
+                return $obj->_db->table($obj->table)->where($field, $arguments[0])->first();
+            }
+        }
+
+        if (method_exists($obj->_db, $name) || preg_match('/^(where|orWhere)(.+)/', $name)) {
             $obj->_db->table($obj->table);
 
             return call_user_func_array([$obj->_db, $name], $arguments);
