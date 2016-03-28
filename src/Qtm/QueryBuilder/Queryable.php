@@ -704,7 +704,7 @@ class Queryable
         }
 
         if ($fetchClass === 'stdClass') {
-            $entries = $this->_stmt->fetchAll(\PDO::FETCH_CLASS);
+            return $this->_stmt->fetchAll(\PDO::FETCH_CLASS);
         } else {
             $entries = $this->_stmt->fetchAll(\PDO::FETCH_ASSOC);
         }
@@ -748,7 +748,7 @@ class Queryable
     {
         $raw = $func . '(' .self::quoteColumn($field) . ')';
         $this->selectFields = [$this->raw($raw)];
-        $result = $this->first();
+        $result = $this->first('array');
         return $result[$raw];
     }
 

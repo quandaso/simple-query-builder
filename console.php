@@ -11,11 +11,11 @@ $config = array (
     'password' => 'quantm'
 );
 
-$db = new Queryable($config);
+$db = new Queryable($config, 'stdClass');
 
 
 
-echo $db->table('users')->where('id', '>', 100)->count() . "\n";
-
+$r = $db->table('users')->limit(10)->get();
+pr ($r[0]);
 echo $db->getLastSql();
 echo "\n";
