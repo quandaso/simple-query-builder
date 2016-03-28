@@ -4,14 +4,14 @@
  * @author quantm
  * @date: 28/03/2016 12:44
  */
-use QtmTest\Model\User;
+namespace QtmTest\Model;
+use Qtm\QueryBuilder\Queryable;
+use QtmTest\AppTestCase;
 
-class UserTest extends \QtmTest\AppTestCase
+/**
+ * @property Queryable $db
+ */
+class UserTest extends AppTestCase
 {
-    public function testInsert()
-    {
-        $user = User::first();
 
-        $this->assertTrue(is_object($user));
-    }
 }

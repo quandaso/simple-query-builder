@@ -39,6 +39,12 @@ class Queryable
         'IS NOT NULL' => true
     );
 
+    private $joinTypes = array(
+        'INNER' => true,
+        'LEFT' => true,
+        'RIGHT' => true
+    );
+
     /**
      * Queryable constructor.
      * @param null $config
@@ -261,10 +267,21 @@ class Queryable
         return $this->addWhereQuery('OR', $field, $opt, $value);
     }
 
-    public function join($table, $key, $operator, $value, $type = 'INNER')
+    /**
+     * @param $table
+     * @param $rawOnCondition
+     * @param string $type
+     * @return $this
+     * @throws \Exception
+     */
+    public function join($table, $rawOnCondition, $type = 'INNER')
     {
+        if (!isset ($this->joinTypes[strtoupper($type)])) {
+            throw new \Exception('Invalid join type');
+        }
+
         $this->joinStates[] = array(
-            'type' => 'INNER',
+            'type' => $type,
             'table' => $table,
             'on' => $rawOnCondition
         );
@@ -272,25 +289,26 @@ class Queryable
         return $this;
     }
 
+    /**
+     * @param $table
+     * @param $rawOnCondition
+     * @return Queryable
+     * @throws \Exception
+     */
     public function leftJoin($table, $rawOnCondition)
     {
-        $this->joinStates[] = array(
-            'type' => 'LEFT',
-            'table' => $table,
-            'on' => $rawOnCondition
-        );
-
-        return $this;
+        return $this->join($table, $rawOnCondition, 'LEFT');
     }
 
+    /**
+     * @param $table
+     * @param $rawOnCondition
+     * @return Queryable
+     * @throws \Exception
+     */
     public function rightJoin($table, $rawOnCondition)
     {
-        $this->joinStates[] = array(
-            'type' => 'RIGHT',
-            'table' => $table,
-            'on' => $rawOnCondition
-        );
-        return $this;
+        return $this->join($table, $rawOnCondition, 'RIGHT');
     }
 
     /**
@@ -344,6 +362,9 @@ class Queryable
         return $this;
     }
 
+    /**
+     * @return string
+     */
     private function getJoinState()
     {
         if (empty ($this->joinStates)) {
@@ -476,7 +497,7 @@ class Queryable
         $this->bindValues();
         $this->_stmt->execute();
 
-        return $this->_stmt->rowCount();
+        return $this->_pdo->lastInsertId();
     }
 
     /**

@@ -348,9 +348,13 @@ class Model implements \ArrayAccess, \JsonSerializable
         return $instance;
     }
 
+    /**
+     * @param $name
+     * @param $arguments
+     * @return mixed
+     */
     public static function __callStatic($name, $arguments)
     {
-        // TODO: Implement __callStatic() method.
         $obj = new static();
 
         if (method_exists($obj->_db, $name)) {
