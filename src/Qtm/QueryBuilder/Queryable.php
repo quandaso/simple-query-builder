@@ -749,7 +749,7 @@ class Queryable
         $raw = $func . '(' .self::quoteColumn($field) . ')';
         $this->selectFields = [$this->raw($raw)];
         $result = $this->first();
-        return (int) $result[$raw];
+        return $result[$raw];
     }
 
     /**
