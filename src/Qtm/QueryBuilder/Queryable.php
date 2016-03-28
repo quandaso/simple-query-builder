@@ -97,6 +97,7 @@ class Queryable
         $this->selectFields = array();
         $this->whereStates = array();
         $this->values = array();
+        $this->joinStates = array();
     }
 
     /**
@@ -796,4 +797,5 @@ class Queryable
 
         return "`".str_replace("`","``",$field)."`";
     }
+
 }

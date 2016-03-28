@@ -187,6 +187,19 @@ class QueryableTest extends AppTestCase
                 ->where('id', 1)
                 ->toSql()
         );
+        $this->assertEquals([1], $db->getBindValues());
+
+        // find by
+
+
+        $this->assertEquals(
+            'SELECT `id` FROM `users` WHERE `id` = ?',
+
+            $db->from('users')
+                ->select('id')
+                ->findById(1)
+                ->toSql()
+        );
 
         $this->assertEquals([1], $db->getBindValues());
 
