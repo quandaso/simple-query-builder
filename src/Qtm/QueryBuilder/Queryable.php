@@ -126,9 +126,9 @@ class Queryable
         return $this;
     }
 
-    public function selectRaw($sql)
+    public function selectRaw($sql, array $values = array())
     {
-        $this->selectFields[] = $this->raw($sql);
+        $this->selectFields[] = $this->raw($sql, $values);
         return $this;
     }
 
@@ -533,7 +533,18 @@ class Queryable
             return 'SELECT *';
         }
 
-        $selectFields = array_map('self::quoteColumn', $this->selectFields);
+        $selectFields = array();
+
+        foreach ($this->selectFields as &$field) {
+            if (is_string($field)) {
+                $selectFields[] = self::quoteColumn($field);
+            } else if (is_object($field)) {
+                if (!empty ($field->rawSql)) {
+                    $selectFields[] = $field->sql;
+                    $this->values = array_merge($this->values, $field->values);
+                }
+            }
+        }
 
         return  'SELECT ' . implode(',', $selectFields);
     }
@@ -717,11 +728,17 @@ class Queryable
         return $this->values;
     }
 
-    public function raw($sql)
+    /**
+     * @param $sql
+     * @param array $values
+     * @return object
+     */
+    public function raw($sql, array $values = array())
     {
         return (object) [
-            'rawQuery' => true,
-            'sql' => $sql
+            'rawSql' => true,
+            'sql' => $sql,
+            'values' => $values
         ];
     }
 
@@ -780,11 +797,6 @@ class Queryable
      */
     private static function quoteColumn($field)
     {
-        if (is_object($field)) {
-            if ($field->rawQuery === true) {
-                return $field->sql;
-            }
-        }
 
         if ($field === '*') {
             return $field;
@@ -796,6 +808,29 @@ class Queryable
         }
 
         return "`".str_replace("`","``",$field)."`";
+    }
+
+    /**
+     * @param $name
+     * @param $arguments
+     * @return mixed
+     */
+    public function __call($name, $arguments)
+    {
+        // TODO: Implement __call() method.
+
+        if (strpos($name, 'findBy') === 0) {
+            if (count($arguments) === 0) {
+                throw new \Exception('Missing argument');
+            }
+
+            $field = preg_replace('/^findBy/', '', $name);
+
+            if (!empty ($field)) {
+                $field = camel_case_to_underscore($field);
+                return $this->where($field, $arguments[0])->first();
+            }
+        }
     }
 
 }

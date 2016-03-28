@@ -350,12 +350,14 @@ class Model implements \ArrayAccess, \JsonSerializable
     {
         $obj = new static();
 
-        if (method_exists($obj->_db, $name)) {
+        if (method_exists($obj->_db, $name) || strpos($name, 'findBy') === 0) {
             $obj->_db->table($obj->table);
 
             return call_user_func_array([$obj->_db, $name], $arguments);
         }
     }
+
+
 
 
 }
