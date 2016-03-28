@@ -126,6 +126,11 @@ class Queryable
         return $this;
     }
 
+    /**
+     * @param $sql
+     * @param array $values
+     * @return $this
+     */
     public function selectRaw($sql, array $values = array())
     {
         $this->selectFields[] = $this->raw($sql, $values);
@@ -269,22 +274,32 @@ class Queryable
     }
 
     /**
-     * @param $table
-     * @param $rawOnCondition
-     * @param string $type
+     * @param $sql
+     * @param array $values
      * @return $this
-     * @throws \Exception
      */
-    public function join($table, $rawOnCondition, $type = 'INNER')
+    public function whereRaw($sql, array $values = array())
     {
-        if (!isset ($this->joinTypes[strtoupper($type)])) {
-            throw new \Exception('Invalid join type');
-        }
+        $this->whereStates[] = array(
+            'type' => 'AND',
+            'rawSql' => $sql,
+            'values' => $values
+        );
 
-        $this->joinStates[] = array(
-            'type' => $type,
-            'table' => $table,
-            'on' => $rawOnCondition
+        return $this;
+    }
+
+    /**
+     * @param $sql
+     * @param array $values
+     * @return $this
+     */
+    public function orWhereRaw($sql, array $values = array())
+    {
+        $this->whereStates[] = array(
+            'type' => 'OR',
+            'rawSql' => $sql,
+            'values' => $values
         );
 
         return $this;
@@ -293,12 +308,40 @@ class Queryable
     /**
      * @param $table
      * @param $rawOnCondition
+     * @param string $type
+     * @return $this
+     * @throws \Exception
+     */
+    public function join($table, $rawOnCondition, array $values = array(), $type = 'INNER')
+    {
+        if (!isset ($this->joinTypes[strtoupper($type)])) {
+            throw new \Exception('Invalid join type');
+        }
+
+        if (is_string ($rawOnCondition)) {
+            $this->joinStates[] = array(
+                'type' => $type,
+                'table' => $table,
+                'on' => $rawOnCondition,
+                'values' => $values
+            );
+        } else {
+            throw new \Exception('Invalid join sql statement');
+        }
+
+        return $this;
+    }
+
+    /**
+     * @param $table
+     * @param $rawOnCondition
+     * @param array $values
      * @return Queryable
      * @throws \Exception
      */
-    public function leftJoin($table, $rawOnCondition)
+    public function leftJoin($table, $rawOnCondition, array $values = array())
     {
-        return $this->join($table, $rawOnCondition, 'LEFT');
+        return $this->join($table, $rawOnCondition, $values,'LEFT');
     }
 
     /**
@@ -307,9 +350,9 @@ class Queryable
      * @return Queryable
      * @throws \Exception
      */
-    public function rightJoin($table, $rawOnCondition)
+    public function rightJoin($table, $rawOnCondition, array $values = array())
     {
-        return $this->join($table, $rawOnCondition, 'RIGHT');
+        return $this->join($table, $rawOnCondition, $values, 'RIGHT');
     }
 
     /**
@@ -376,6 +419,7 @@ class Queryable
 
         foreach ($this->joinStates as $join) {
             $joins[] = $join['type'] . ' JOIN ' . self::quoteColumn($join['table']) . ' ON ' . $join['on'];
+            $this->values = array_merge($this->values, $join['values']);
         }
 
         return implode(' ',$joins);
@@ -511,6 +555,8 @@ class Queryable
             throw new \Exception('Table name is not specified');
         }
 
+        $this->values = array();
+
         $query = array (
             'DELETE FROM ' . self::quoteColumn($this->_table),
             $this->getWhereState()
@@ -538,11 +584,9 @@ class Queryable
         foreach ($this->selectFields as &$field) {
             if (is_string($field)) {
                 $selectFields[] = self::quoteColumn($field);
-            } else if (is_object($field)) {
-                if (!empty ($field->rawSql)) {
-                    $selectFields[] = $field->sql;
-                    $this->values = array_merge($this->values, $field->values);
-                }
+            } else if (self::isRawObject($field)) {
+                $selectFields[] = $field->sql;
+                $this->values = array_merge($this->values, $field->values);
             }
         }
 
@@ -580,15 +624,15 @@ class Queryable
 
             $statement = '';
 
-            if (isset ($where['query'])) {
+            if (isset ($where['rawSql'])) {
+                $statement = $where['rawSql'];
+                $this->values = array_merge($this->values, $where['values']);
+            } else if (isset ($where['query'])) {
                 $query = $where['query'](new static());
 
                 if (!empty ($query->whereStates)) {
                     $statement = '(' . $query->getWhereState(false) . ')';
-
-                    foreach ($query->values as $v) {
-                        $this->values[] = $v;
-                    }
+                    $this->values = array_merge($this->values, $query->values);
                 }
 
             } else if ($where['operator'] === 'IS NULL' || $where['operator'] === 'IS NOT NULL') {
@@ -645,6 +689,7 @@ class Queryable
     }
 
     /**
+     * @param $fetchClass
      * @return array
      * @throws \Exception
      */
@@ -658,7 +703,12 @@ class Queryable
             $this->query($this->toSql(), $this->values);
         }
 
-        $entries = $this->_stmt->fetchAll(\PDO::FETCH_ASSOC);
+        if ($fetchClass === 'stdClass') {
+            $entries = $this->_stmt->fetchAll(\PDO::FETCH_CLASS);
+        } else {
+            $entries = $this->_stmt->fetchAll(\PDO::FETCH_ASSOC);
+        }
+
         $this->_stmt = null;
 
         if ($fetchClass === 'array') {
@@ -678,22 +728,73 @@ class Queryable
     }
 
     /**
+     * @param $fetchClass
      * @return null | array
      * @throws \Exception
      */
     public function first($fetchClass = null)
     {
         $this->limit(1);
-        $results = $this->get();
+        $results = $this->get($fetchClass);
         return empty ($results) ? null : $results[0];
     }
 
     /**
+     * @param $func
+     * @param $field
      * @return int
      */
-    public function count()
+    private function aggregate($func, $field)
     {
-        return count($this->get());
+        $raw = $func . '(' .self::quoteColumn($field) . ')';
+        $this->selectFields = [$this->raw($raw)];
+        $result = $this->first();
+        return (int) $result[$raw];
+    }
+
+    /**
+     * @param $field
+     * @return int
+     */
+    public function count($field = '*')
+    {
+        return (int) $this->aggregate('COUNT', $field);
+    }
+
+    /**
+     * @param $field
+     * @return int
+     */
+    public function max($field)
+    {
+        return $this->aggregate('MAX', $field);
+    }
+
+    /**
+     * @param $field
+     * @return int
+     */
+    public function min($field)
+    {
+        return $this->aggregate('MIN', $field);
+    }
+
+    /**
+     * @param $field
+     * @return int
+     */
+    public function avg($field)
+    {
+        return  $this->aggregate('AVG', $field);
+    }
+
+    /**
+     * @param $field
+     * @return int
+     */
+    public function sum($field)
+    {
+        return $this->aggregate('SUM', $field);
     }
 
     /**
@@ -810,6 +911,21 @@ class Queryable
         return "`".str_replace("`","``",$field)."`";
     }
 
+    /**
+     * @param $obj
+     * @return bool
+     */
+    private static function isRawObject($obj)
+    {
+        return is_object($obj) && isset ($obj->rawSql, $obj->sql, $obj->values);
+    }
+
+    /**
+     * @param $name
+     * @param $arguments
+     * @return mixed
+     * @throws \Exception
+     */
     public function __call($name, $arguments)
     {
         if (preg_match('/^(where|orWhere)(.+)/', $name, $match)) {

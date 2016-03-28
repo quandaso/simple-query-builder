@@ -5,12 +5,12 @@ namespace Qtm\QueryBuilder;
 
 class Model implements \ArrayAccess, \JsonSerializable
 {
-    private $dbConfig = [
+    private $dbConfig = array (
         'host' => 'localhost',
         'database' => 'queryable',
         'username' => 'root',
         'password' => 'quantm'
-    ];
+    );
 
     private $_db;
     private $_data = [];

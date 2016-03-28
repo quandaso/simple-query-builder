@@ -10,6 +10,18 @@ use QtmTest\AppTestCase;
  */
 class QueryableTest extends AppTestCase
 {
+    public function testAggregate()
+    {
+        $db = $this->db;
+
+        $db->table('users')->where('id', '>', 10)->count();
+        $this->assertEquals('SELECT COUNT(*) FROM `users` WHERE `id` > ? LIMIT 1', $db->getLastSql());
+
+        $db->table('users')->max('id');
+        $this->assertEquals('SELECT MAX(`id`) FROM `users` LIMIT 1' , $db->getLastSql());
+
+
+    }
 
     public function testInsert()
     {
@@ -157,9 +169,21 @@ class QueryableTest extends AppTestCase
         );
         $this->assertEquals([], $db->getBindValues());
 
+        // where Raw
+        $this->assertEquals(
+            'SELECT `id` FROM `users` WHERE `test` <> ? OR `id` IN (SELECT `id` FROM `users` WHERE `status` IN (?,?,?)) AND `status` = ?',
+
+            $db->from('users')
+                ->select('id')
+                ->where('test', '<>', 3)
+                ->orWhereRaw('`id` IN (SELECT `id` FROM `users` WHERE `status` IN (?,?,?))', [1,2,3])
+                ->where('status', 3)
+                ->toSql()
+        );
+        $this->assertEquals([3, 1,2,3,3], $db->getBindValues());
         // where callback
         $this->assertEquals(
-            'SELECT `id` FROM `users` WHERE `activated` > ? AND (`status` IN (?,?,?) AND (`id` = ? OR `id` = ?))',
+            'SELECT `id` FROM `users` WHERE `activated` > ? AND (`status` IN (?,?,?) AND (`id` = ? OR `id` = ?)) GROUP BY `id` ORDER BY `id` ASC',
 
             $db->from('users')
                 ->select('id')
@@ -172,7 +196,10 @@ class QueryableTest extends AppTestCase
                         });
 
                     return $q;
-                })->toSql()
+                })
+                ->groupBy('id')
+                ->orderBy('id')
+                ->toSql()
         );
         $this->assertEquals([0, 1,2,3,3,4], $db->getBindValues());
 
@@ -188,7 +215,20 @@ class QueryableTest extends AppTestCase
                 ->toSql()
         );
         $this->assertEquals([1], $db->getBindValues());
+        // joins with binding
 
+        $this->assertEquals(
+            'SELECT `id` FROM `users` LEFT JOIN `groups` ON `groups`.`id` = `users`.`group_id` AND `users`.`status`=? WHERE `id` = ? LIMIT 10,20',
+
+            $db->from('users')
+                ->select('id')
+                ->limit(20)
+                ->offset(10)
+                ->leftJoin('groups', '`groups`.`id` = `users`.`group_id` AND `users`.`status`=?', [1])
+                ->where('id', 1)
+                ->toSql()
+        );
+        $this->assertEquals([1,1], $db->getBindValues());
 
     }
 }

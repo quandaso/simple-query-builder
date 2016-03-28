@@ -13,6 +13,36 @@ use QtmTest\AppTestCase;
  */
 class UserTest extends AppTestCase
 {
+    private $phone = '+84123456789';
+
+    public function testCreateNew()
+    {
+        $data = [
+            'email' => 'test@' . str_random(5) . '.com',
+            'phone' => $this->phone,
+            'username' => 'test' . str_random(3)
+        ];
+
+        $u = new User($data);
+        $u->save();
+
+        $this->assertTrue(is_numeric($u->id));
+        $u1 = new User($u->id);
+
+        $this->assertEquals($u['email'], $u1['email']);
+        $this->assertEquals($u['phone'], $u1->phone);
+        $this->assertEquals($u['username'], $u1->username);
+
+    }
+
+    public function testFindByMagic()
+    {
+        $u2 = User::findBy('phone', $this->phone);
+        $u3 = User::findByPhone($this->phone);
+
+        $this->assertEquals($u2, $u3);
+    }
+
     public function testWhereMagic()
     {
         $this->assertEquals('SELECT * FROM `users` WHERE `phone` = ? AND `id` = ?',

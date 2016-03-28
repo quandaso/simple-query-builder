@@ -4,7 +4,18 @@ require ROOT_DIR . '/vendor/autoload.php';
 use \QtmTest\Model\User;
 use \Qtm\QueryBuilder\Queryable;
 
+$config = array (
+    'host' => 'localhost',
+    'database' => 'queryable',
+    'username' => 'root',
+    'password' => 'quantm'
+);
 
-$u = User::wherePhone('+841667208673')->whereId(1)->toSql();
-;
-dd($u);
+$db = new Queryable($config);
+
+
+
+echo $db->table('users')->where('id', '>', 100)->count() . "\n";
+
+echo $db->getLastSql();
+echo "\n";
