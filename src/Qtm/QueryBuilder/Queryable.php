@@ -361,7 +361,10 @@ class Queryable
      */
     public function limit($limit)
     {
-        $this->_limit = (int) $limit;
+        if ($limit !== null) {
+            $this->_limit = (int) $limit;
+        }
+
         return $this;
     }
 
@@ -371,7 +374,10 @@ class Queryable
      */
     public function offset($offset)
     {
-        $this->_offset = (int) $offset;
+        if ($offset !== null) {
+            $this->_offset = (int) $offset;
+        }
+
         return $this;
     }
 
@@ -689,25 +695,36 @@ class Queryable
     }
 
     /**
+     * @param int $limit
+     * @param int $offset
+     * @return array
+     */
+    public function get($limit = null, $offset = null)
+    {
+        $this->limit($limit);
+        $this->offset($offset);
+
+        return $this->fetchAll($this->fetchClass);
+    }
+
+    /**
      * @param $fetchClass
      * @return array
      * @throws \Exception
      */
-    public function get($fetchClass = null)
+    private function fetchAll($fetchClass = 'array')
     {
-        if (empty ($fetchClass)) {
-            $fetchClass = $this->fetchClass;
-        }
-
         if ($this->_stmt === null) {
             $this->query($this->toSql(), $this->values);
         }
 
         if ($fetchClass === 'stdClass') {
-            return $this->_stmt->fetchAll(\PDO::FETCH_CLASS);
-        } else {
-            $entries = $this->_stmt->fetchAll(\PDO::FETCH_ASSOC);
+            $entries = $this->_stmt->fetchAll(\PDO::FETCH_CLASS);
+            $this->_stmt = null;
+            return $entries;
         }
+
+        $entries = $this->_stmt->fetchAll(\PDO::FETCH_ASSOC);
 
         $this->_stmt = null;
 
@@ -728,14 +745,12 @@ class Queryable
     }
 
     /**
-     * @param $fetchClass
      * @return null | array
      * @throws \Exception
      */
-    public function first($fetchClass = null)
+    public function first()
     {
-        $this->limit(1);
-        $results = $this->get($fetchClass);
+        $results = $this->get(1);
         return empty ($results) ? null : $results[0];
     }
 
@@ -746,10 +761,11 @@ class Queryable
      */
     private function aggregate($func, $field)
     {
+        $this->limit(1);
         $raw = $func . '(' .self::quoteColumn($field) . ')';
         $this->selectFields = [$this->raw($raw)];
-        $result = $this->first('array');
-        return $result[$raw];
+        $result = $this->fetchAll('array');
+        return $result[0][$raw];
     }
 
     /**

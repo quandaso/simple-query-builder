@@ -15,7 +15,7 @@ $db = new Queryable($config, 'stdClass');
 
 
 
-$r = $db->table('users')->limit(10)->get();
-pr ($r[0]);
+$r = $db->table('users')->get();
+pr ($r);
 echo $db->getLastSql();
 echo "\n";
