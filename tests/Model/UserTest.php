@@ -39,8 +39,8 @@ class UserTest extends AppTestCase
     {
         $u2 = User::findBy('phone', $this->phone);
         $u3 = User::findByPhone($this->phone);
-
-        $this->assertEquals($u2, $u3);
+     
+        $this->assertEquals($u2->toArray(), $u3->toArray());
     }
 
     public function testWhereMagic()
