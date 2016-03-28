@@ -115,7 +115,13 @@ class Queryable
      */
     public function select()
     {
-        $this->selectFields = self::flattenArray(func_get_args());
+        $this->selectFields = array_merge($this->selectFields, self::flattenArray(func_get_args()));
+        return $this;
+    }
+
+    public function selectRaw($sql)
+    {
+        $this->selectFields[] = $this->raw($sql);
         return $this;
     }
 
@@ -255,7 +261,7 @@ class Queryable
         return $this->addWhereQuery('OR', $field, $opt, $value);
     }
 
-    public function join($table, $rawOnCondition)
+    public function join($table, $key, $operator, $value, $type = 'INNER')
     {
         $this->joinStates[] = array(
             'type' => 'INNER',

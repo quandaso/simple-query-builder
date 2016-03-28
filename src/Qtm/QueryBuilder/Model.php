@@ -5,6 +5,13 @@ namespace Qtm\QueryBuilder;
 
 class Model implements \ArrayAccess, \JsonSerializable
 {
+    private $dbConfig = [
+        'host' => 'localhost',
+        'database' => 'queryable',
+        'username' => 'root',
+        'password' => 'quantm'
+    ];
+
     private $_db;
     private $_data = [];
     private $_id;
@@ -19,7 +26,7 @@ class Model implements \ArrayAccess, \JsonSerializable
      * @param null|array|object $id Specified id or data
      * @throws \Exception
      */
-    public function __construct($id = null, $table = null, $dbConfig = 'master')
+    public function __construct($id = null, $table = null)
     {
         if (empty ($this->table)) {
             $this->table = $table;
@@ -40,7 +47,7 @@ class Model implements \ArrayAccess, \JsonSerializable
             'password' => 'quantm'
         ];
 
-        $this->_db = new Queryable($config, static::class);
+        $this->_db = new Queryable($this->dbConfig, static::class);
 
         if (is_object($id)) {
             $id = (array) $id;

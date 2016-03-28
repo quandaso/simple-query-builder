@@ -3,18 +3,19 @@
 namespace QtmTest\QueryBuilder;
 
 use Qtm\QueryBuilder\Queryable;
+use QtmTest\AppTestCase;
 
 /**
  * @property Queryable $db
  */
-class QueryableTest extends \PHPUnit_Framework_TestCase
+class QueryableTest extends AppTestCase
 {
 
     public function testWhere()
     {
         $config = [
             'host' => 'localhost',
-            'database' => 'bigcoin_rebuild',
+            'database' => 'queryable',
             'username' => 'root',
             'password' => 'quantm'
         ];
@@ -23,13 +24,13 @@ class QueryableTest extends \PHPUnit_Framework_TestCase
 
         // Generate where query
         $this->assertEquals(
-            'SELECT * FROM `user_test`',
-            $db->from('user_test')->toSql()
+            'SELECT * FROM `users`',
+            $db->from('users')->toSql()
         );
 
         $this->assertEquals(
-            'SELECT * FROM `user_test` GROUP BY `id` ORDER BY `email` DESC LIMIT 10,10',
-            $db->from('user_test')
+            'SELECT * FROM `users` GROUP BY `id` ORDER BY `email` DESC LIMIT 10,10',
+            $db->from('users')
                 ->limit(10)
                 ->offset(10)
                 ->groupBy('id')
@@ -38,17 +39,17 @@ class QueryableTest extends \PHPUnit_Framework_TestCase
         );
 
         $this->assertEquals(
-            'SELECT `id`,`email` FROM `user_test` WHERE `id` = ? OR `id` >= ?',
-            $db->from('user_test')->select('id', 'email')->where('id', 1)->orWhere('id', '>=', 3)->toSql()
+            'SELECT `id`,`email` FROM `users` WHERE `id` = ? OR `id` >= ?',
+            $db->from('users')->select('id', 'email')->where('id', 1)->orWhere('id', '>=', 3)->toSql()
         );
 
         $this->assertEquals([1, 3], $db->getBindValues());
 
         // whereIn, whereNotIn
         $this->assertEquals(
-            'SELECT `id` FROM `user_test` WHERE `id` = ? AND `email` = ? OR `id` IN (?,?,?) AND `status` NOT IN (?,?,?)',
+            'SELECT `id` FROM `users` WHERE `id` = ? AND `email` = ? OR `id` IN (?,?,?) AND `status` NOT IN (?,?,?)',
 
-            $db->from('user_test')
+            $db->from('users')
                 ->select('id')
                 ->where('id', 1)
                 ->where('email', 'test@mail.com')
@@ -61,9 +62,9 @@ class QueryableTest extends \PHPUnit_Framework_TestCase
 
         // whereBetween
         $this->assertEquals(
-            'SELECT `id` FROM `user_test` WHERE `id` BETWEEN ? AND ? OR `id` BETWEEN ? AND ?',
+            'SELECT `id` FROM `users` WHERE `id` BETWEEN ? AND ? OR `id` BETWEEN ? AND ?',
 
-            $db->from('user_test')
+            $db->from('users')
                 ->select('id')
                 ->whereBetween('id', 1 ,5)
                 ->orWhereBetween('id', 5, 7)
@@ -74,9 +75,9 @@ class QueryableTest extends \PHPUnit_Framework_TestCase
 
         // whereLIKE
         $this->assertEquals(
-            'SELECT `id` FROM `user_test` WHERE `id` LIKE ? OR `id` LIKE ?',
+            'SELECT `id` FROM `users` WHERE `id` LIKE ? OR `id` LIKE ?',
 
-            $db->from('user_test')
+            $db->from('users')
                 ->select('id')
                 ->whereLike('id', 1)
                 ->orWhereLike('id', 3)
@@ -87,9 +88,9 @@ class QueryableTest extends \PHPUnit_Framework_TestCase
 
         // where null
         $this->assertEquals(
-            'SELECT `id` FROM `user_test` WHERE `status` IS NOT NULL AND `activated` IS NULL OR `id` IS NOT NULL',
+            'SELECT `id` FROM `users` WHERE `status` IS NOT NULL AND `activated` IS NULL OR `id` IS NOT NULL',
 
-            $db->from('user_test')
+            $db->from('users')
                 ->select('id')
                 ->whereNotNull('status')
                 ->whereNull('activated')
@@ -100,9 +101,9 @@ class QueryableTest extends \PHPUnit_Framework_TestCase
 
         // where callback
         $this->assertEquals(
-            'SELECT `id` FROM `user_test` WHERE `activated` > ? AND (`status` IN (?,?,?) AND (`id` = ? OR `id` = ?))',
+            'SELECT `id` FROM `users` WHERE `activated` > ? AND (`status` IN (?,?,?) AND (`id` = ? OR `id` = ?))',
 
-            $db->from('user_test')
+            $db->from('users')
                 ->select('id')
                 ->where('activated', '>', 0)
                 ->where(function(Queryable $q) {
@@ -115,6 +116,7 @@ class QueryableTest extends \PHPUnit_Framework_TestCase
                     return $q;
                 })->toSql()
         );
+
         $this->assertEquals([0, 1,2,3,3,4], $db->getBindValues());
 
 
