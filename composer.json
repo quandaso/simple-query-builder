@@ -4,6 +4,10 @@
     "require": {
       "php": ">=5.3.0"
     },
+  "keywords": ["query builder", "sql", "database", "mysql"],
+  "license": "MIT",
+  "minimum-stability": "dev",
+
 	"autoload": {
          "psr-4": {
             "Qtm\\": "src/Qtm"
