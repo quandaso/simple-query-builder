@@ -113,7 +113,7 @@ class Queryable
 
         $this->initQuery();
         $this->_table = $table;
-        $this->fromStates = [$table];
+        $this->fromStates = array($table);
         return $this;
     }
 
@@ -731,7 +731,7 @@ class Queryable
         if ($fetchClass === 'array') {
             return $entries;
         } else if (is_string($fetchClass)) {
-            $result  = [];
+            $result  = array();
 
             foreach ($entries as $entry) {
                 $obj = new $fetchClass($entry);
@@ -763,7 +763,7 @@ class Queryable
     {
         $this->limit(1);
         $raw = $func . '(' .self::quoteColumn($field) . ')';
-        $this->selectFields = [$this->raw($raw)];
+        $this->selectFields = array($this->raw($raw));
         $result = $this->fetchAll('array');
         return $result[0][$raw];
     }
@@ -885,28 +885,49 @@ class Queryable
     }
 
     /**
-     * @param $args
-     * @return array
+     * @return null|\PDO
      */
-    private static function flattenArray($args)
+    public function pdo()
     {
-        if (!is_array($args)) {
-            $args = [$args];
-        }
-
-        $result = array();
-        foreach ($args as $arg) {
-            if (is_array($arg)) {
-                foreach (self::flattenArray($arg) as $v) {
-                    $result[] = $v;
-                }
-            } else {
-                $result[] = $arg;
-            }
-        }
-
-        return $result;
+        return $this->_pdo;
     }
+
+    /**
+     * Begin transaction
+     */
+    public function beginTransaction()
+    {
+        $this->_pdo->beginTransaction();
+    }
+
+    /**
+     * Commit
+     */
+    public function commit()
+    {
+        $this->_pdo->commit();
+    }
+
+    /**
+     * rollback
+     */
+    public function rollBack()
+    {
+        $this->_pdo->rollBack();
+    }
+
+    /**
+     * @param $callback
+     */
+    public function transaction($callback)
+    {
+        if (is_callable($callback)) {
+            $this->beginTransaction();
+            $callback($this);
+            $this->commit();
+        }
+    }
+
 
     /**
      * @param $field

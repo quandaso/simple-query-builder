@@ -15,9 +15,9 @@ class SimpleModel implements \ArrayAccess, \JsonSerializable
     );
 
     private $_db;
-    private $_data = [];
+    private $_data = array();
     private $_id;
-    private  $_fillableMap = [];
+    private  $_fillableMap = array();
 
     protected $primaryKey = 'id';
     protected $fillable = null;
@@ -117,7 +117,7 @@ class SimpleModel implements \ArrayAccess, \JsonSerializable
      */
     public function setAttr($name, $value)
     {
-        $setMethod = '_' . str_camel_case('set_' . $name, '_');
+        $setMethod = '_' . H::strCamelCase('set_' . $name, '_');
 
         if (method_exists($this, $setMethod)) {
             $value = $this->$setMethod($value);
@@ -183,7 +183,7 @@ class SimpleModel implements \ArrayAccess, \JsonSerializable
     {
         $fields = H::flattenArray(func_get_args());
 
-        $_data = [];
+        $_data = array();
 
         if (!empty ($fields)) {
 
@@ -241,7 +241,7 @@ class SimpleModel implements \ArrayAccess, \JsonSerializable
      */
     public function toArray()
     {
-        $_data = [];
+        $_data = array();
 
         foreach ($this->_data as $name => $value) {
             $_data[$name] = $this->getAttr($name);
