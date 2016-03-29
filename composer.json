@@ -1,5 +1,5 @@
 {
-    "name": "qtm/query-builder",
+    "name": "Qtm/query-builder",
     "description": "Simple mysql query builder",
     "require": {
       "php": ">=5.3.0"
