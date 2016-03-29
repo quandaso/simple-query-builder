@@ -13,7 +13,7 @@ $config = array (
 
 $db = new Queryable($config, 'stdClass');
 
-
+Qtm\Helper::dd([1,2,3]);
 
 $r = $db->table('users')->get();
 pr ($r);

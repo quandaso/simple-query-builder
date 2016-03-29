@@ -1,9 +1,11 @@
 <?php
 
 
-namespace Qtm\QueryBuilder;
+namespace Qtm\Model;
+use Qtm\QueryBuilder\Queryable;
+use Qtm\Helper as H;
 
-class Model implements \ArrayAccess, \JsonSerializable
+class SimpleModel implements \ArrayAccess, \JsonSerializable
 {
     private $dbConfig = array (
         'host' => 'localhost',
@@ -96,7 +98,7 @@ class Model implements \ArrayAccess, \JsonSerializable
      */
     public function getAttr($name)
     {
-        $getMethod = '_' . str_camel_case('get_' . $name, '_');
+        $getMethod = '_' . H::strCamelCase('get_' . $name, '_');
 
         if (method_exists($this, $getMethod)) {
             return $this->$getMethod(@$this->_data[$name]);
@@ -179,7 +181,7 @@ class Model implements \ArrayAccess, \JsonSerializable
      */
     public function save()
     {
-        $fields = flat_array(func_get_args());
+        $fields = H::flattenArray(func_get_args());
 
         $_data = [];
 
@@ -362,17 +364,15 @@ class Model implements \ArrayAccess, \JsonSerializable
     {
         $obj = new static();
 
-        if (strpos($name, 'findBy') === 0) {
+
+        if (preg_match('/^findBy(.+)/', $name, $m)) {
+
             if (count($arguments) === 0) {
                 throw new \Exception('Missing argument');
             }
 
-            $field = preg_replace('/^findBy/', '', $name);
-
-            if (!empty ($field)) {
-                $field = camel_case_to_underscore($field);
-                return $obj->_db->table($obj->table)->where($field, $arguments[0])->first();
-            }
+            $field = H::camelCaseToUnderscore($m[1]);
+            return $obj->_db->table($obj->table)->where($field, $arguments[0])->first();
         }
 
         if (method_exists($obj->_db, $name) || preg_match('/^(where|orWhere)(.+)/', $name)) {

@@ -1,2 +1,3 @@
-phpunit --bootstrap vendor/autoload.php tests/QueryBuilder/QueryableTest --debug
+#phpunit --bootstrap vendor/autoload.php tests/QueryBuilder/QueryableTest --debug
 #phpunit --bootstrap vendor/autoload.php tests/Model/UserTest --debug
+phpunit --bootstrap vendor/autoload.php tests --debug

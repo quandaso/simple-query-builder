@@ -7,7 +7,7 @@
 namespace QtmTest\Model;
 use Qtm\QueryBuilder\Queryable;
 use QtmTest\AppTestCase;
-
+use Qtm\Helper as H;
 /**
  * @property Queryable $db
  */
@@ -18,9 +18,9 @@ class UserTest extends AppTestCase
     public function testCreateNew()
     {
         $data = [
-            'email' => 'test@' . str_random(5) . '.com',
+            'email' => 'test@' . H::strRandom(5) . '.com',
             'phone' => $this->phone,
-            'username' => 'test' . str_random(3)
+            'username' => 'test' . H::strRandom(3)
         ];
 
         $u = new User($data);

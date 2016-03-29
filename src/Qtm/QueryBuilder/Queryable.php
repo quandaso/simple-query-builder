@@ -1,7 +1,7 @@
 <?php
 
 namespace Qtm\QueryBuilder;
-
+use Qtm\Helper as H;
 
 
 class Queryable
@@ -75,7 +75,7 @@ class Queryable
     public function from()
     {
         $this->initQuery();
-        $this->fromStates = self::flattenArray(func_get_args());
+        $this->fromStates = H::flattenArray(func_get_args());
         return $this;
     }
 
@@ -122,7 +122,7 @@ class Queryable
      */
     public function select()
     {
-        $this->selectFields = array_merge($this->selectFields, self::flattenArray(func_get_args()));
+        $this->selectFields = array_merge($this->selectFields, H::flattenArray(func_get_args()));
         return $this;
     }
 
@@ -657,7 +657,7 @@ class Queryable
                     throw new \Exception('Missing WHERE in values');
                 }
 
-                $where['value'] = self::flattenArray($where['value']);
+                $where['value'] = H::flattenArray($where['value']);
 
                 $inValueSet = array();
 
@@ -949,7 +949,7 @@ class Queryable
                 throw new \Exception('Missing argument');
             }
 
-            $field = camel_case_to_underscore($match[2]);
+            $field = H::camelCaseToUnderscore($match[2]);
             $method = $match[1];
             return $this->$method($field, $arguments[0]);
         }
