@@ -1,5 +1,10 @@
 <?php
 
+/**
+ * MySQL Query Builder (query syntax is like Laravel Query Builder)
+ * @author quantm
+ * @date: 26/03/2016 11:13
+ */
 namespace Qtm\QueryBuilder;
 use Qtm\Helper as H;
 
@@ -223,6 +228,18 @@ class Queryable
         return $this->addWhereQuery('AND', $field, 'NOT IN', $values);
     }
 
+    public function whereNotEmpty($field)
+    {
+        return $this->whereNotNull($field)->where($field, '!=', '');
+    }
+
+    public function orWhereNotEmpty($field)
+    {
+        return $this->orWhere(function (Queryable $query) use($field) {
+            return $query->whereNotNull($field)->where($field, '!=', '');
+        });
+    }
+
     public function orWhereNotIn($field, array $values)
     {
         return $this->addWhereQuery('OR', $field, 'NOT IN', $values);
@@ -303,54 +320,88 @@ class Queryable
         return $this;
     }
 
+
     /**
      * @param $table
-     * @param $rawOnCondition
+     * @param $onRawCondition
+     * @param array $values
      * @param string $type
      * @return $this
      * @throws \Exception
      */
-    public function join($table, $rawOnCondition, array $values = array(), $type = 'INNER')
+    public function joinRaw($table, $onRawCondition, array $values = array(), $type = 'INNER')
     {
         if (!isset ($this->joinTypes[strtoupper($type)])) {
             throw new \Exception('Invalid join type');
         }
 
-        if (is_string ($rawOnCondition)) {
-            $this->joinStates[] = array(
-                'type' => $type,
-                'table' => $table,
-                'on' => $rawOnCondition,
-                'values' => $values
-            );
-        } else {
-            throw new \Exception('Invalid join sql statement');
-        }
+        $this->joinStates[] = array(
+            'type' => $type,
+            'table' => $table,
+            'onRaw' => $this->raw($onRawCondition, $values),
+        );
 
         return $this;
     }
 
-    /**
-     * @param $table
-     * @param $rawOnCondition
-     * @param array $values
-     * @return Queryable
-     * @throws \Exception
-     */
-    public function leftJoin($table, $rawOnCondition, array $values = array())
+    public function innerJoinRaw($table, $onRawCondition, array $values = array())
     {
-        return $this->join($table, $rawOnCondition, $values,'LEFT');
+        return $this->joinRaw($table, $onRawCondition, $values, 'INNER');
+    }
+
+    public function leftJoinRaw($table, $onRawCondition, array $values = array())
+    {
+        return $this->joinRaw($table, $onRawCondition, $values, 'LEFT');
+    }
+
+    public function rightJoinRaw($table, $onRawCondition, array $values = array())
+    {
+        return $this->joinRaw($table, $onRawCondition, $values, 'RIGHT');
     }
 
     /**
      * @param $table
-     * @param $rawOnCondition
-     * @return Queryable
+     * @param $key
+     * @param $operator
+     * @param $value
+     * @param string $type
+     * @return $this
      * @throws \Exception
      */
-    public function rightJoin($table, $rawOnCondition, array $values = array())
+    public function join($table, $key, $operator, $value, $type = 'INNER')
     {
-        return $this->join($table, $rawOnCondition, $values, 'RIGHT');
+        if (!isset ($this->joinTypes[strtoupper($type)])) {
+            throw new \Exception('Invalid join type');
+        }
+
+        if (!isset ($this->operators[$operator])) {
+            throw new \Exception('Invalid operator: ' . $operator);
+        }
+
+        $this->joinStates[] = array(
+            'type' => $type,
+            'table' => $table,
+            'key' => $key,
+            'operator' => $operator,
+            'value' => $value
+        );
+
+        return $this;
+    }
+
+    public function innerJoin($table, $key, $operator, $value)
+    {
+        return $this->join($table, $key, $operator,$value,'INNER');
+    }
+
+    public function leftJoin($table, $key, $operator, $value)
+    {
+        return $this->join($table, $key, $operator,$value,'LEFT');
+    }
+
+    public function rightJoin($table, $key, $operator, $value)
+    {
+        return $this->join($table, $key, $operator, $value, 'RIGHT');
     }
 
     /**
@@ -422,14 +473,22 @@ class Queryable
         $joins = array();
 
         foreach ($this->joinStates as $join) {
-            $joins[] = $join['type'] . ' JOIN ' . $this->quoteColumn($join['table']) . ' ON ' . $join['on'];
-            $this->values = array_merge($this->values, $join['values']);
+            if (isset ($join['onRaw'])) {
+                $raw = $join['onRaw'];
+                $joins[] = $join['type'] . ' JOIN ' .$this->quoteColumn($join['table'])
+                    .' ON ' . $raw->sql;
+                $this->values = array_merge($this->values, $raw->values);
+            } else {
+                $joins[] = $join['type'] . ' JOIN '
+                    . $this->quoteColumn($join['table'])
+                    . ' ON '
+                    .  $this->quoteColumn($join['key']) .' '
+                    . $join['operator'] . ' ' . $this->quoteColumn($join['value']);
+            }
         }
 
-        return implode(' ',$joins);
+        return implode(' ', $joins);
     }
-
-
 
     /**
      * @return string
@@ -697,6 +756,17 @@ class Queryable
     }
 
     /**
+     * @param string $fetchClass
+     * @return null
+     */
+    public function fetchFirst($fetchClass = 'array')
+    {
+        $this->limit(1);
+        $results = $this->fetchAll($fetchClass);
+        return empty ($results) ? null : $results[0];
+    }
+
+    /**
      * @param $fetchClass
      * @return array
      * @throws \Exception
@@ -734,13 +804,33 @@ class Queryable
     }
 
     /**
-     * @return null | array
+     * @return null | array | \stdClass
      * @throws \Exception
      */
     public function first()
     {
         $results = $this->get(1);
         return empty ($results) ? null : $results[0];
+    }
+
+    /**
+     * Returns [key => value]
+     * @param $value
+     * @param $key
+     * @return array
+     */
+    public function lists($key, $value = null)
+    {
+        $result = $this->fetchAll('array');
+        $lists = [];
+
+        if (!empty ($result)) {
+            foreach ($result as $data) {
+                $lists[$data[$key]] = ($value === null) ? $data : $data[$value];
+            }
+        }
+
+        return $lists;
     }
 
     /**

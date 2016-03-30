@@ -2,19 +2,13 @@
 
 
 namespace Qtm\Model;
-use Qtm\QueryBuilder\Queryable;
 use Qtm\Helper as H;
+use Qtm\QueryBuilder\Queryable;
 
 class SimpleModel implements \ArrayAccess, \JsonSerializable
 {
-    private $dbConfig = array (
-        'host' => 'localhost',
-        'database' => 'queryable',
-        'username' => 'root',
-        'password' => 'quantm'
-    );
-
-    private $_db;
+    protected $dbConfig = null;
+    protected $_db = null;
     private $_data = array();
     private $_id;
     private  $_fillableMap = array();
@@ -36,14 +30,16 @@ class SimpleModel implements \ArrayAccess, \JsonSerializable
         }
 
         if (empty ($this->table)) {
-            throw new \Exception('Table name is not specified');
+            $this->table = H::camelCaseToUnderscore(end(explode('\\', get_class($this))));
         }
 
         if (!empty ($this->fillable)) {
             $this->_fillableMap = array_flip($this->fillable);
         }
 
-        $this->_db = new Queryable($this->dbConfig, static::class);
+        if (empty($this->_db)) {
+            $this->_db = new Queryable($this->dbConfig, static::class);
+        }
 
         if (is_object($id)) {
             $id = (array) $id;
@@ -62,11 +58,10 @@ class SimpleModel implements \ArrayAccess, \JsonSerializable
             if (isset ($id)) {
                 $data = $this->_db->table($this->table)
                     ->where($this->primaryKey, $id)
-                    ->limit(1)
-                    ->fetchAll();
+                    ->fetchFirst('array');
 
                 if (!empty ($data)) {
-                    $this->_data = $data[0];
+                    $this->_data = $data;
                 }
             }
         }
@@ -169,7 +164,7 @@ class SimpleModel implements \ArrayAccess, \JsonSerializable
      */
     public function __unset($name)
     {
-         unset($this->_data[$name]);
+        unset($this->_data[$name]);
     }
 
     /**
