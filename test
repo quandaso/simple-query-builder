@@ -1,4 +1,4 @@
 #phpunit --bootstrap vendor/autoload.php tests/QueryBuilder/QueryableTest --debug --filter testWhere
 #phpunit --bootstrap vendor/autoload.php tests/Model/UserTest --debug
 #phpunit --bootstrap vendor/autoload.php tests --debug
-#phpunit --bootstrap vendor/autoload.php Queryable tests/QueryBuilder/ --filter testWhere
+#phpunit --bootstrap vendor/autoload.php tests/QueryBuilder/ --filter testWhere
