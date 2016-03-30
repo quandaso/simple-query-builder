@@ -4,6 +4,7 @@ namespace QtmTest\QueryBuilder;
 
 use Qtm\QueryBuilder\Queryable;
 use QtmTest\AppTestCase;
+use Qtm\Helper as H;
 
 /**
  * @property Queryable $db
@@ -158,29 +159,32 @@ class QueryableTest extends AppTestCase
 
         // where null
         $this->assertEquals(
-            'SELECT `id` FROM `users` WHERE `status` IS NOT NULL AND `activated` IS NULL OR `id` IS NOT NULL',
+            'SELECT `id` FROM `users` WHERE `status` IS NOT NULL AND `activated` IS NULL OR `id` IS NOT NULL OR `test` IS NULL',
 
             $db->from('users')
                 ->select('id')
                 ->whereNotNull('status')
                 ->whereNull('activated')
                 ->orWhereNotNull('id')
+                ->orWhereNull('test')
                 ->toSql()
         );
         $this->assertEquals([], $db->getBindValues());
 
         // where Raw
         $this->assertEquals(
-            'SELECT `id` FROM `users` WHERE `test` <> ? OR `id` IN (SELECT `id` FROM `users` WHERE `status` IN (?,?,?)) AND `status` = ?',
+            'SELECT `id` FROM `users` WHERE `test` <> ? AND DATE(users.created) > ? OR `id` IN (SELECT `id` FROM `users` WHERE `status` IN (?,?,?)) AND `status` = ?',
 
             $db->from('users')
                 ->select('id')
                 ->where('test', '<>', 3)
+                ->whereRaw('DATE(users.created) > ?', [1])
                 ->orWhereRaw('`id` IN (SELECT `id` FROM `users` WHERE `status` IN (?,?,?))', [1,2,3])
                 ->where('status', 3)
                 ->toSql()
         );
-        $this->assertEquals([3, 1,2,3,3], $db->getBindValues());
+
+        $this->assertEquals([3, 1, 1,2,3,3], $db->getBindValues());
         // where callback
         $this->assertEquals(
             'SELECT `id` FROM `users` WHERE `activated` > ? AND (`status` IN (?,?,?) AND (`id` = ? OR `id` = ?)) GROUP BY `id` ORDER BY `id` ASC',
@@ -215,8 +219,8 @@ class QueryableTest extends AppTestCase
                 ->toSql()
         );
         $this->assertEquals([1], $db->getBindValues());
-        // joins with binding
 
+        // joins with binding
         $this->assertEquals(
             'SELECT `id` FROM `users` LEFT JOIN `groups` ON `groups`.`id` = `users`.`group_id` AND `users`.`status`=? WHERE `id` = ? LIMIT 10,20',
 
@@ -228,7 +232,22 @@ class QueryableTest extends AppTestCase
                 ->where('id', 1)
                 ->toSql()
         );
+
         $this->assertEquals([1,1], $db->getBindValues());
 
+        // Raw test
+        $now = H::now();
+
+        $this->assertEquals(
+            'SELECT `id`,`email`,SUM(`id`) AS `sum` FROM `users` WHERE DATE(`created`) <= ? AND `status` NOT IN (?,?,?)',
+
+            $db->from('users')
+                ->select('id', 'email', $db->raw('SUM(`id`) AS `sum`'))
+                ->where($db->raw('DATE(`created`)'), '<=', $now)
+                ->whereNotIn('status', [3,4,5])
+                ->toSql()
+        );
+
+        $this->assertEquals([$now, 3,4,5], $db->getBindValues());
     }
 }

@@ -6,6 +6,6 @@ $vendorDir = dirname(dirname(__FILE__));
 $baseDir = dirname($vendorDir);
 
 return array(
-    'Qtm\\' => array($baseDir . '/src/Qtm'),
+    'Qtm\\' => array($baseDir . '/src/qtm'),
     'QtmTest\\' => array($baseDir . '/tests'),
 );

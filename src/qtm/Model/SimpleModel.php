@@ -26,12 +26,13 @@ class SimpleModel implements \ArrayAccess, \JsonSerializable
     /**
      * Model constructor.
      * @param null|array|object $id Specified id or data
+     * @param string|null $table
      * @throws \Exception
      */
     public function __construct($id = null, $table = null)
     {
         if (empty ($this->table)) {
-            $this->table = $table;
+            $this->table = (string) $table;
         }
 
         if (empty ($this->table)) {
@@ -59,7 +60,14 @@ class SimpleModel implements \ArrayAccess, \JsonSerializable
             $this->_id = $id;
 
             if (isset ($id)) {
-                $this->_data = $this->_db->table($this->table)->where($this->primaryKey, $id)->first('array');
+                $data = $this->_db->table($this->table)
+                    ->where($this->primaryKey, $id)
+                    ->limit(1)
+                    ->fetchAll();
+
+                if (!empty ($data)) {
+                    $this->_data = $data[0];
+                }
             }
         }
     }
@@ -324,7 +332,7 @@ class SimpleModel implements \ArrayAccess, \JsonSerializable
     /**
      * Creates new instance from given data source
      * @param $data
-     * @return Model
+     * @return SimpleModel
      */
     public static function fromData($data = null)
     {
@@ -364,7 +372,6 @@ class SimpleModel implements \ArrayAccess, \JsonSerializable
     {
         $obj = new static();
 
-
         if (preg_match('/^findBy(.+)/', $name, $m)) {
 
             if (count($arguments) === 0) {
@@ -381,8 +388,6 @@ class SimpleModel implements \ArrayAccess, \JsonSerializable
             return call_user_func_array([$obj->_db, $name], $arguments);
         }
     }
-
-
 
 
 }

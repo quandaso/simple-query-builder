@@ -45,7 +45,7 @@ class Helper
      * Dumps vars then die
      */
     public static function dd() {
-        call_user_func_array('pr', func_get_args());
+        call_user_func_array('self::pr', func_get_args());
         die;
     }
 
@@ -118,5 +118,14 @@ class Helper
             $match = $match == strtoupper($match) ? strtolower($match) : lcfirst($match);
         }
         return implode('_', $ret);
+    }
+
+    /**
+     * Gets current time
+     * @return bool|string
+     */
+    public static function now()
+    {
+        return date('Y-m-d H:i:s');
     }
 }

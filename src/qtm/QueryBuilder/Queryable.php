@@ -282,8 +282,7 @@ class Queryable
     {
         $this->whereStates[] = array(
             'type' => 'AND',
-            'rawSql' => $sql,
-            'values' => $values
+            'rawSql' => $this->raw($sql, $values)
         );
 
         return $this;
@@ -298,8 +297,7 @@ class Queryable
     {
         $this->whereStates[] = array(
             'type' => 'OR',
-            'rawSql' => $sql,
-            'values' => $values
+            'rawSql' => $this->raw($sql, $values)
         );
 
         return $this;
@@ -424,7 +422,7 @@ class Queryable
         $joins = array();
 
         foreach ($this->joinStates as $join) {
-            $joins[] = $join['type'] . ' JOIN ' . self::quoteColumn($join['table']) . ' ON ' . $join['on'];
+            $joins[] = $join['type'] . ' JOIN ' . $this->quoteColumn($join['table']) . ' ON ' . $join['on'];
             $this->values = array_merge($this->values, $join['values']);
         }
 
@@ -439,7 +437,7 @@ class Queryable
     private function getOrderByState()
     {
         if ($this->_order !== null) {
-            return "ORDER BY " . self::quoteColumn($this->_order) . ' ' . $this->_orderDirection;
+            return "ORDER BY " . $this->quoteColumn($this->_order) . ' ' . $this->_orderDirection;
         }
 
         return '';
@@ -499,12 +497,12 @@ class Queryable
         $this->values = array();
 
         foreach ($data as $k => $v) {
-            $updateSetStates[] = self::quoteColumn($k) .'=?';
+            $updateSetStates[] = $this->quoteColumn($k) .'=?';
             $this->values[] = $v;
         }
 
         $query = array (
-            'UPDATE ' . self::quoteColumn($this->_table),
+            'UPDATE ' . $this->quoteColumn($this->_table),
             'SET ' . implode(',', $updateSetStates),
             $this->getWhereState(),
         );
@@ -533,13 +531,13 @@ class Queryable
         $this->values = array();
 
         foreach ($data as $k => $v) {
-            $insertStates[] = self::quoteColumn($k);
+            $insertStates[] = $this->quoteColumn($k);
             $valueStates[] = '?';
             $this->values[] = $v;
         }
 
         $query = array (
-            'INSERT INTO ' . self::quoteColumn($this->_table) . '(' . implode(',', $insertStates) .')',
+            'INSERT INTO ' . $this->quoteColumn($this->_table) . '(' . implode(',', $insertStates) .')',
             'VALUES(' . implode(',', $valueStates) . ')',
         );
 
@@ -564,7 +562,7 @@ class Queryable
         $this->values = array();
 
         $query = array (
-            'DELETE FROM ' . self::quoteColumn($this->_table),
+            'DELETE FROM ' . $this->quoteColumn($this->_table),
             $this->getWhereState()
         );
 
@@ -585,16 +583,7 @@ class Queryable
             return 'SELECT *';
         }
 
-        $selectFields = array();
-
-        foreach ($this->selectFields as &$field) {
-            if (is_string($field)) {
-                $selectFields[] = self::quoteColumn($field);
-            } else if (self::isRawObject($field)) {
-                $selectFields[] = $field->sql;
-                $this->values = array_merge($this->values, $field->values);
-            }
-        }
+        $selectFields = array_map(array($this, 'quoteColumn'), $this->selectFields);
 
         return  'SELECT ' . implode(',', $selectFields);
     }
@@ -604,7 +593,7 @@ class Queryable
      */
     private function getFromState()
     {
-        $fromTables = array_map('self::quoteColumn', $this->fromStates);
+        $fromTables = array_map(array($this, 'quoteColumn'), $this->fromStates);
         return 'FROM ' . implode(',', $fromTables);
     }
 
@@ -625,14 +614,14 @@ class Queryable
             $first = count($whereStates) === 0;
 
             if (isset ($where['field'])) {
-                $where['field'] = self::quoteColumn($where['field']);
+                $where['field'] = $this->quoteColumn($where['field']);
             }
 
             $statement = '';
 
             if (isset ($where['rawSql'])) {
-                $statement = $where['rawSql'];
-                $this->values = array_merge($this->values, $where['values']);
+                $statement = $where['rawSql']->sql;
+                $this->values = array_merge($this->values, $where['rawSql']->values);
             } else if (isset ($where['query'])) {
                 $query = $where['query'](new static());
 
@@ -688,7 +677,7 @@ class Queryable
     private function getGroupByState()
     {
         if (!empty ($this->_group)) {
-            return 'GROUP BY ' . self::quoteColumn($this->_group);
+            return 'GROUP BY ' . $this->quoteColumn($this->_group);
         }
 
         return '';
@@ -712,7 +701,7 @@ class Queryable
      * @return array
      * @throws \Exception
      */
-    private function fetchAll($fetchClass = 'array')
+    public function fetchAll($fetchClass = 'array')
     {
         if ($this->_stmt === null) {
             $this->query($this->toSql(), $this->values);
@@ -762,7 +751,7 @@ class Queryable
     private function aggregate($func, $field)
     {
         $this->limit(1);
-        $raw = $func . '(' .self::quoteColumn($field) . ')';
+        $raw = $func . '(' .$this->quoteColumn($field) . ')';
         $this->selectFields = array($this->raw($raw));
         $result = $this->fetchAll('array');
         return $result[0][$raw];
@@ -852,11 +841,11 @@ class Queryable
      */
     public function raw($sql, array $values = array())
     {
-        return (object) [
+        return (object) array(
             'rawSql' => true,
-            'sql' => $sql,
+            'sql' => (string) $sql,
             'values' => $values
-        ];
+        );
     }
 
     /**
@@ -928,13 +917,16 @@ class Queryable
         }
     }
 
-
     /**
      * @param $field
      * @return string
      */
-    private static function quoteColumn($field)
+    private function quoteColumn($field)
     {
+        if (self::isRawObject($field)) {
+            $this->values = array_merge($this->values, $field->values);
+            return $field->sql;
+        }
 
         if ($field === '*') {
             return $field;
