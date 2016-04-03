@@ -120,6 +120,7 @@ class Helper
         return implode('_', $ret);
     }
 
+
     /**
      * Gets current time
      * @return bool|string
@@ -127,5 +128,67 @@ class Helper
     public static function now()
     {
         return date('Y-m-d H:i:s');
+    }
+
+    /**
+     * Encrypts data
+     * @param $sValue
+     * @param $sSecretKey
+     * @return string
+     */
+    public static function fnEncrypt($sValue, $sSecretKey)
+    {
+        try {
+            return rtrim(
+                base64_encode(
+                    mcrypt_encrypt(
+                        MCRYPT_RIJNDAEL_128,
+                        $sSecretKey, $sValue,
+                        MCRYPT_MODE_ECB,
+                        mcrypt_create_iv(
+                            mcrypt_get_iv_size(
+                                MCRYPT_RIJNDAEL_128,
+                                MCRYPT_MODE_ECB
+                            ),
+                            MCRYPT_RAND)
+                    )
+                ), "\0"
+            );
+        } catch (\Exception $e) {
+
+        }
+
+        return $sValue;
+    }
+
+    /**
+     * Decrypts data
+     * @param $sValue
+     * @param $sSecretKey
+     * @return string
+     */
+    public static function fnDecrypt($sValue, $sSecretKey)
+    {
+        try {
+            return rtrim(
+                mcrypt_decrypt(
+                    MCRYPT_RIJNDAEL_128,
+                    $sSecretKey,
+                    base64_decode($sValue),
+                    MCRYPT_MODE_ECB,
+                    mcrypt_create_iv(
+                        mcrypt_get_iv_size(
+                            MCRYPT_RIJNDAEL_128,
+                            MCRYPT_MODE_ECB
+                        ),
+                        MCRYPT_RAND
+                    )
+                ), "\0"
+            );
+        } catch (\Exception $e) {
+
+        }
+
+        return $sValue;
     }
 }

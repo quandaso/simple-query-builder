@@ -3,19 +3,20 @@
 
 namespace Qtm\Model;
 use Qtm\Helper as H;
-use Qtm\QueryBuilder\Queryable;
 
 class SimpleModel implements \ArrayAccess, \JsonSerializable
 {
     protected $dbConfig = null;
     protected $_db = null;
     private $_data = array();
+    private $_originalData = array();
     private $_id;
     private  $_fillableMap = array();
 
     protected $primaryKey = 'id';
     protected $fillable = null;
     protected $table = null;
+
 
     /**
      * Model constructor.
@@ -30,7 +31,8 @@ class SimpleModel implements \ArrayAccess, \JsonSerializable
         }
 
         if (empty ($this->table)) {
-            $this->table = H::camelCaseToUnderscore(end(explode('\\', get_class($this))));
+            $classes = explode('\\', get_class($this));
+            $this->table = H::camelCaseToUnderscore(end($classes));
         }
 
         if (!empty ($this->fillable)) {
@@ -47,6 +49,7 @@ class SimpleModel implements \ArrayAccess, \JsonSerializable
 
         if (is_array($id)) {
             $this->_data = $id;
+            $this->_originalData = $id;
 
             if (isset ($this->_data[$this->primaryKey])) {
                 $this->_id = $this->_data[$this->primaryKey];
@@ -62,6 +65,7 @@ class SimpleModel implements \ArrayAccess, \JsonSerializable
 
                 if (!empty ($data)) {
                     $this->_data = $data;
+                    $this->_originalData = $data;
                 }
             }
         }
@@ -126,7 +130,7 @@ class SimpleModel implements \ArrayAccess, \JsonSerializable
             $value = $this->$setMethod($value);
         }
 
-        if (is_array($value)) {
+        if (is_array($value) || $value instanceof \stdClass) {
             $value = json_encode($value);
         } else if ($value instanceof \DateTime) {
             $value = $value->format('Y-m-d H:i:s');
@@ -178,11 +182,29 @@ class SimpleModel implements \ArrayAccess, \JsonSerializable
     }
 
     /**
+     * Gets changed data by diff $_originalData and $_data
+     * @return array
+     */
+    public function getChangedData()
+    {
+        $changedData = array();
+
+        foreach ($this->_data as $k => $v) {
+            if (!array_key_exists($k, $this->_originalData) || $this->_originalData[$k] !== $v) {
+                $changedData[$k] = $v;
+            }
+        }
+
+        return $changedData;
+    }
+
+    /**
      * Saves data
-     * @param $fields
+     * @params string|array $args
+     * @params string|array $_
      * @return int
      */
-    public function save()
+    public function save($args = null, $_ = null)
     {
         $fields = H::flattenArray(func_get_args());
 
@@ -197,18 +219,25 @@ class SimpleModel implements \ArrayAccess, \JsonSerializable
             }
 
         } else {
-            $_data = $this->_data;
+            $_data = $this->getChangedData();
         }
 
         if (!empty ($_data)) {
-            unset ($_data[$this->primaryKey]);
 
             if (empty ($this->_id)) {
                 $this->_id = $this->_db->table($this->table)->insert($_data);
                 $this->_data[$this->primaryKey] = $this->_id;
             } else {
-                $this->_db->table($this->table)->where($this->primaryKey, $this->_id)->update($_data);
+                $this->_db->table($this->table)
+                    ->where($this->primaryKey, $this->_id)
+                    ->update($_data);
+
+                if (isset ($_data[$this->primaryKey])) {
+                    $this->_id = $_data[$this->primaryKey];
+                }
             }
+
+            $this->_originalData = $this->_data;
 
         }
 
@@ -225,6 +254,7 @@ class SimpleModel implements \ArrayAccess, \JsonSerializable
             $this->_db->table($this->table)->where($this->primaryKey, $this->_id)->delete();
             unset ($this->_id);
             unset($this->_data[$this->primaryKey]);
+            $this->_originalData = array();
             return true;
         }
 
@@ -236,7 +266,12 @@ class SimpleModel implements \ArrayAccess, \JsonSerializable
      */
     public function reload()
     {
-        $this->_data = (array) $this->_db->table($this->table)->find($this->_id, $this->primaryKey);
+        $this->_data = $this->_db
+            ->table($this->table)
+            ->where($this->primaryKey, $this->_id)
+            ->fetchFirst('array');
+
+        $this->_originalData = $this->_data;
     }
 
     /**
@@ -254,10 +289,27 @@ class SimpleModel implements \ArrayAccess, \JsonSerializable
     }
 
     /**
+     * @return array
+     */
+    public function getLastSql()
+    {
+        return array($this->_db->getLastSql(), $this->_db->getBindValues());
+    }
+
+    /**
      * Gets original data
      * @return array
      */
     public function getOriginalData()
+    {
+        return $this->_originalData;
+    }
+
+    /**
+     * Gets dirty data
+     * @return array
+     */
+    public function getDirtyData()
     {
         return $this->_data;
     }
@@ -310,10 +362,12 @@ class SimpleModel implements \ArrayAccess, \JsonSerializable
         return $this->toArray();
     }
 
+
     /**
      * Gets table scheme
      * @param $table
      * @param string $dbConfig
+     * @deprecated Use Queryable::scheme
      * @return array
      */
     public static function scheme($table, $dbConfig = 'master')
@@ -327,7 +381,7 @@ class SimpleModel implements \ArrayAccess, \JsonSerializable
     /**
      * Creates new instance from given data source
      * @param $data
-     * @return SimpleModel
+     * @return static | null
      */
     public static function fromData($data = null)
     {
@@ -382,6 +436,8 @@ class SimpleModel implements \ArrayAccess, \JsonSerializable
 
             return call_user_func_array([$obj->_db, $name], $arguments);
         }
+
+        throw new \Exception('Method ' . static::class . '::' . $name . ' does not exist');
     }
 
 

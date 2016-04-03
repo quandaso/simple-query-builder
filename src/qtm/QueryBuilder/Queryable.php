@@ -11,20 +11,21 @@ use Qtm\Helper as H;
 
 class Queryable
 {
+    private static $queryHistory = [];
     private $_lastSql = null;
     private $_pdo = null;
     private $_limit = null;
     private $_offset = null;
-    private $_order = null;
-    private $_group = null;
+    private $_order = [];
+    private $_group = [];
     private $_table = null;
     private $_stmt = null;
-    private $_orderDirection = 'ASC';
     private $fetchClass = 'array';
 
     private $fromStates = array();
     private $selectFields = array();
     private $whereStates = array();
+    private $havingStates = array();
     private $joinStates  = array();
     private $values = array();
 
@@ -39,6 +40,7 @@ class Queryable
         'IN' => true,
         'LIKE' => true,
         'BETWEEN' => true,
+        'NOT BETWEEN' => true,
         'NOT IN' => true,
         'IS NULL' => true,
         'IS NOT NULL' => true
@@ -76,12 +78,15 @@ class Queryable
     }
 
     /**
-     * @return static
+     * @param $args string | array
+     * @param $_ string | array
+     * @return $this
      */
-    public function from()
+    public function from($args, $_ = null)
     {
         $this->initQuery();
         $this->fromStates = H::flattenArray(func_get_args());
+        $this->_table = $this->fromStates[0];
         return $this;
     }
 
@@ -93,15 +98,15 @@ class Queryable
         $this->_lastSql = null;
         $this->_limit = null;
         $this->_offset = null;
-        $this->_order = null;
-        $this->_group = null;
+        $this->_order = array();
+        $this->_group = array();
         $this->_table = null;
         $this->_stmt = null;
-        $this->_orderDirection = 'ASC';
 
         $this->fromStates = array();
         $this->selectFields = array();
         $this->whereStates = array();
+        $this->havingStates = array();
         $this->values = array();
         $this->joinStates = array();
     }
@@ -124,9 +129,11 @@ class Queryable
     }
 
     /**
+     * @param $field array|string
+     * @param $_ array|string
      * @return $this
      */
-    public function select()
+    public function select($field, $_ = null)
     {
         $this->selectFields = array_merge($this->selectFields, H::flattenArray(func_get_args()));
         return $this;
@@ -189,51 +196,97 @@ class Queryable
         return $this;
     }
 
+    /**
+     * @return $this
+     */
+    public function whereNotBetween($field, $fromValue, $toValue)
+    {
+        return $this->addWhereQuery('AND', $field, 'NOT BETWEEN', [$fromValue, $toValue]);
+    }
+
+    /**
+     * @return $this
+     */
+    public function orWhereNotBetween($field, $fromValue, $toValue)
+    {
+        return $this->addWhereQuery('OR', $field, 'NOT BETWEEN', [$fromValue, $toValue]);
+    }
+
+    /**
+     * @return $this
+     */
     public function orWhereNotNull($field)
     {
         return $this->addWhereQuery('OR', $field, 'IS NOT NULL', null);
     }
 
+    /**
+     * @return $this
+     */
     public function orWhereNull($field)
     {
         return $this->addWhereQuery('OR', $field, 'IS NULL', null);
     }
 
+    /**
+     * @return $this
+     */
     public function whereNotNull($field)
     {
         return $this->addWhereQuery('AND', $field, 'IS NOT NULL', null);
     }
 
+    /**
+     * @return $this
+     */
     public function whereNull($field)
     {
         return $this->addWhereQuery('AND', $field, 'IS NULL', null);
     }
 
+    /**
+     * @return $this
+     */
     public function whereBetween($field, $fromValue, $toValue)
     {
         return $this->addWhereQuery('AND', $field, 'BETWEEN', [$fromValue, $toValue]);
     }
 
+    /**
+     * @return $this
+     */
     public function orWhereBetween($field, $fromValue, $toValue)
     {
         return $this->addWhereQuery('OR', $field, 'BETWEEN', [$fromValue, $toValue]);
     }
 
+    /**
+     * @return $this
+     */
     public function whereIn($field, array $values)
     {
         return $this->addWhereQuery('AND', $field, 'IN', $values);
     }
 
+    /**
+     * @return $this
+     */
     public function whereNotIn($field, array $values)
     {
         return $this->addWhereQuery('AND', $field, 'NOT IN', $values);
     }
 
+    /**
+     * @return $this
+     */
     public function whereNotEmpty($field)
     {
         return $this->whereNotNull($field)->where($field, '!=', '');
     }
 
+    /**
+     * @return $this
+     */
     public function orWhereNotEmpty($field)
     {
         return $this->orWhere(function (Queryable $query) use($field) {
@@ -241,21 +294,33 @@ class Queryable
         });
     }
 
+    /**
+     * @return $this
+     */
     public function orWhereNotIn($field, array $values)
     {
         return $this->addWhereQuery('OR', $field, 'NOT IN', $values);
     }
 
+    /**
+     * @return $this
+     */
     public function whereLike($field, $value)
     {
         return $this->addWhereQuery('AND', $field, 'LIKE', $value);
     }
 
+    /**
+     * @return $this
+     */
     public function orWhereLike($field, $value)
     {
         return $this->addWhereQuery('OR', $field, 'LIKE', $value);
     }
 
+    /**
+     * @return $this
+     */
     public function orWhereIn($field, array $values)
     {
         return $this->addWhereQuery('OR', $field, 'IN', $values);
@@ -265,7 +330,7 @@ class Queryable
      * @param $field
      * @param null $opt
      * @param null $value
-     * @return Queryable
+     * @return $this
      */
     public function where($field, $opt = null, $value = null)
     {
@@ -280,7 +345,7 @@ class Queryable
      * @param $field
      * @param null $opt
      * @param null $value
-     * @return Queryable
+     * @return $this
      */
     public function orWhere($field, $opt = null, $value = null)
     {
@@ -345,16 +410,25 @@ class Queryable
         return $this;
     }
 
+    /**
+     * @return $this
+     */
     public function innerJoinRaw($table, $onRawCondition, array $values = array())
     {
         return $this->joinRaw($table, $onRawCondition, $values, 'INNER');
     }
 
+    /**
+     * @return $this
+     */
     public function leftJoinRaw($table, $onRawCondition, array $values = array())
     {
         return $this->joinRaw($table, $onRawCondition, $values, 'LEFT');
     }
 
+    /**
+     * @return $this
+     */
     public function rightJoinRaw($table, $onRawCondition, array $values = array())
     {
         return $this->joinRaw($table, $onRawCondition, $values, 'RIGHT');
@@ -390,16 +464,25 @@ class Queryable
         return $this;
     }
 
+    /**
+     * @return $this
+     */
     public function innerJoin($table, $key, $operator, $value)
     {
         return $this->join($table, $key, $operator,$value,'INNER');
     }
 
+    /**
+     * @return $this
+     */
     public function leftJoin($table, $key, $operator, $value)
     {
         return $this->join($table, $key, $operator,$value,'LEFT');
     }
 
+    /**
+     * @return $this
+     */
     public function rightJoin($table, $key, $operator, $value)
     {
         return $this->join($table, $key, $operator, $value, 'RIGHT');
@@ -445,21 +528,245 @@ class Queryable
             throw new \Exception('Invalid order direction');
         }
 
-        $this->_order = $field;
-        $this->_orderDirection = $direction;
+        $this->_order[] = array(
+            'orderBy' => $field,
+            'direction' => $direction
+        );
 
         return $this;
     }
 
     /**
-     * @param $group
+     * @param $field array|string
+     * @param $_ array|string
      * @return $this
      */
-    public function groupBy($group)
+    public function groupBy($field = null, $_ = null)
     {
-        $this->_group = $group;
+
+        $this->_group = array_merge($this->_group, H::flattenArray(func_get_args()));
 
         return $this;
+    }
+
+    /**
+     * @param string $type
+     * @param $field
+     * @param null $opt
+     * @param null $value
+     * @return $this
+     * @throws \Exception
+     */
+    private function addHavingQuery($type = 'AND', $field, $opt = null, $value = null)
+    {
+        if ($field instanceof \Closure) {
+
+            $callback = $field;
+
+            $this->havingStates[] = array(
+                'type' => $type,
+                'query' => $callback
+            );
+
+            return $this;
+        }
+
+
+        if (func_num_args() === 3) {
+            $value = $opt;
+            $opt = '=';
+        } else {
+            if (!isset ($this->operators[$opt])) {
+                throw new \Exception('Invalid operator: ' . $opt);
+            }
+        }
+
+        $opt = trim(strtoupper($opt));
+
+        $this->havingStates[] = array(
+            'type' => $type,
+            'field' => $field,
+            'operator' => $opt,
+            'value' => $value
+        );
+
+        return $this;
+    }
+
+    /**
+     * @param $field
+     * @param null $opt
+     * @param null $value
+     * @return $this
+     * @throws \Exception
+     */
+    public function having($field, $opt = null, $value = null)
+    {
+        if (func_num_args() === 2) {
+            return $this->addHavingQuery('AND', $field, $opt);
+        }
+
+        return $this->addHavingQuery('AND', $field, $opt, $value);
+    }
+
+    /**
+     * @param $field
+     * @return Queryable
+     * @throws \Exception
+     */
+    public function havingNull($field)
+    {
+        return $this->addHavingQuery('AND', $field, 'IS NULL', null);
+    }
+
+    /**
+     * @param $field
+     * @return Queryable
+     * @throws \Exception
+     */
+    public function orHavingNull($field)
+    {
+        return $this->addHavingQuery('OR', $field, 'IS NULL', null);
+    }
+
+    /**
+     * @param $field
+     * @return Queryable
+     * @throws \Exception
+     */
+    public function havingNotNull($field)
+    {
+        return $this->addHavingQuery('AND', $field, 'IS NOT NULL', null);
+    }
+
+    /**
+     * @param $field
+     * @return Queryable
+     * @throws \Exception
+     */
+    public function orHavingNotNull($field)
+    {
+        return $this->addHavingQuery('OR', $field, 'IS NOT NULL', null);
+    }
+
+    /**
+     * @param $field
+     * @param null $opt
+     * @param null $value
+     * @return $this
+     * @throws \Exception
+     */
+    public function orHaving($field, $opt = null, $value = null)
+    {
+        if (func_num_args() === 2) {
+            return $this->addHavingQuery('OR', $field, $opt);
+        }
+
+        return $this->addHavingQuery('OR', $field, $opt, $value);
+    }
+
+    /**
+     * @param $sql
+     * @param array $values
+     * @return $this
+     */
+    public function havingRaw($sql, array $values = array())
+    {
+        $this->havingStates[] = array(
+            'type' => 'AND',
+            'rawSql' => $this->raw($sql, $values)
+        );
+
+        return $this;
+    }
+
+    /**
+     * @param $sql
+     * @param array $values
+     * @return $this
+     */
+    public function orHavingRaw($sql, array $values = array())
+    {
+        $this->havingStates[] = array(
+            'type' => 'OR',
+            'rawSql' => $this->raw($sql, $values)
+        );
+
+        return $this;
+    }
+
+    /**
+     * @param bool $hasHaving
+     * @return string
+     * @throws \Exception
+     */
+    private function getHavingState($hasHaving = true)
+    {
+        if (empty ($this->havingStates)) {
+            return  '';
+        }
+
+        $havingStates = array();
+
+        foreach ($this->havingStates as $i => $having) {
+            $first = count($havingStates) === 0;
+
+            if (isset ($having['field'])) {
+                $having['field'] = $this->quoteColumn($having['field']);
+            }
+
+            $statement = '';
+
+            if (isset ($having['rawSql'])) {
+                $statement = $having['rawSql']->sql;
+                $this->values = array_merge($this->values, $having['rawSql']->values);
+            } else if (isset ($having['query'])) {
+                $query = $having['query'](new static());
+
+                if (!empty ($query->havingStates)) {
+                    $statement = '(' . $query->getHavingState(false) . ')';
+                    $this->values = array_merge($this->values, $query->values);
+                }
+
+            } else if ($having['operator'] === 'IS NULL' || $having['operator'] === 'IS NOT NULL') {
+                $statement = $having['field'] . ' ' . $having['operator'];
+            } else if ($having['operator'] === 'BETWEEN' || $having['operator'] === 'NOT BETWEEN') {
+                if (count($having['value']) < 2) {
+                    throw new \Exception ('Missing BETWEEN values');
+                }
+
+                $statement = $having['field'] . ' ' . $having['operator'] .' ? AND ?';
+                $this->values[] = $having['value'][0];
+                $this->values[] = $having['value'][1];
+
+            } else if ($having['operator'] === 'IN' || $having['operator'] === 'NOT IN') {
+                if (!isset ($having['value'])) {
+                    throw new \Exception('Missing WHERE in values');
+                }
+
+                $having['value'] = H::flattenArray($having['value']);
+
+                $inValueSet = array();
+
+                foreach ($having['value'] as $v) {
+                    $this->values[] = $v;
+                    $inValueSet[] = '?';
+                }
+
+                $statement = $having['field'] . ' ' . $having['operator'] . ' (' . implode(',', $inValueSet) . ')';
+            } else {
+                $statement = $having['field'] . ' ' . $having['operator'] . ' ?';
+                $this->values[] = $having['value'];
+            }
+
+            if (!$first) {
+                $statement = $having['type'] . ' ' . $statement;
+            }
+
+            $havingStates[] = $statement;
+        }
+
+        return  $hasHaving ? 'HAVING ' . implode(' ', $havingStates) : implode(' ', $havingStates);
     }
 
     /**
@@ -496,8 +803,14 @@ class Queryable
      */
     private function getOrderByState()
     {
-        if ($this->_order !== null) {
-            return "ORDER BY " . $this->quoteColumn($this->_order) . ' ' . $this->_orderDirection;
+        if (!empty ($this->_order)) {
+            $orderByStates = array();
+
+            foreach ($this->_order as $order) {
+                $orderByStates[] = $this->quoteColumn($order['orderBy']) . ' ' . $order['direction'];
+            }
+
+            return 'ORDER BY ' . implode(',', $orderByStates);
         }
 
         return '';
@@ -509,11 +822,11 @@ class Queryable
     private function getLimitState()
     {
         if ($this->_limit !== null && $this->_offset === null) {
-            return "LIMIT " . $this->_limit;
+            return 'LIMIT ' . $this->_limit;
         }
 
         if ($this->_limit !== null && $this->_offset !== null) {
-            return "LIMIT " . $this->_offset . ',' . $this->_limit;
+            return 'LIMIT ' . $this->_offset . ',' . $this->_limit;
         }
 
         return '';
@@ -535,6 +848,7 @@ class Queryable
             $this->getJoinState(),
             $this->getWhereState(),
             $this->getGroupByState(),
+            $this->getHavingState(),
             $this->getOrderByState(),
             $this->getLimitState(),
         );
@@ -553,12 +867,21 @@ class Queryable
             throw new \Exception('Table name is not specified');
         }
 
+        if (empty ($data)) {
+            throw new \Exception('Update data can not be empty');
+        }
+
         $updateSetStates = array();
         $this->values = array();
 
         foreach ($data as $k => $v) {
-            $updateSetStates[] = $this->quoteColumn($k) .'=?';
-            $this->values[] = $v;
+            if (self::isRawObject($v)) {
+                $updateSetStates[] = $this->quoteColumn($k) .'=' . $v->sql;
+                $this->values = array_merge($this->values, $v->values);
+            } else {
+                $updateSetStates[] = $this->quoteColumn($k) .'=?';
+                $this->values[] = $v;
+            }
         }
 
         $query = array (
@@ -568,9 +891,7 @@ class Queryable
         );
 
         $this->_lastSql = trim(implode(' ', $query));
-        $this->_stmt = $this->_pdo->prepare($this->_lastSql);
-        $this->bindValues();
-        $this->_stmt->execute();
+        $this->query($this->_lastSql, $this->values);
 
         return $this->_stmt->rowCount();
     }
@@ -580,10 +901,14 @@ class Queryable
      * @return int
      * @throws \Exception
      */
-    public function insert($data)
+    public function insert(array $data)
     {
         if (empty ($this->_table)) {
             throw new \Exception('Table name is not specified');
+        }
+
+        if (empty ($data)) {
+            throw new \Exception('Insert data can not be empty');
         }
 
         $insertStates = array();
@@ -602,9 +927,7 @@ class Queryable
         );
 
         $this->_lastSql = trim(implode(' ', $query));
-        $this->_stmt = $this->_pdo->prepare($this->_lastSql);
-        $this->bindValues();
-        $this->_stmt->execute();
+        $this->query($this->_lastSql, $this->values);
 
         return $this->_pdo->lastInsertId();
     }
@@ -627,10 +950,7 @@ class Queryable
         );
 
         $this->_lastSql = trim(implode(' ', $query));
-        $this->_stmt = $this->_pdo->prepare($this->_lastSql);
-        $this->bindValues();
-        $this->_stmt->execute();
-
+        $this->query($this->_lastSql, $this->values);
         return $this->_stmt->rowCount();
     }
 
@@ -692,12 +1012,12 @@ class Queryable
 
             } else if ($where['operator'] === 'IS NULL' || $where['operator'] === 'IS NOT NULL') {
                 $statement = $where['field'] . ' ' . $where['operator'];
-            } else if ($where['operator'] === 'BETWEEN') {
+            } else if ($where['operator'] === 'BETWEEN' || $where['operator'] === 'NOT BETWEEN') {
                 if (count($where['value']) < 2) {
                     throw new \Exception ('Missing BETWEEN values');
                 }
 
-                $statement = $where['field'] . ' BETWEEN ? AND ?';
+                $statement = $where['field'] . ' ' . $where['operator'] .' ? AND ?';
                 $this->values[] = $where['value'][0];
                 $this->values[] = $where['value'][1];
 
@@ -737,7 +1057,9 @@ class Queryable
     private function getGroupByState()
     {
         if (!empty ($this->_group)) {
-            return 'GROUP BY ' . $this->quoteColumn($this->_group);
+            $groupByStates = array_map(array($this, 'quoteColumn'), $this->_group);
+
+            return 'GROUP BY ' . implode(',', $groupByStates);
         }
 
         return '';
@@ -768,7 +1090,7 @@ class Queryable
     }
 
     /**
-     * @param $fetchClass
+     * @param $fetchClass 'array'|'stdClass'
      * @return array
      * @throws \Exception
      */
@@ -823,7 +1145,7 @@ class Queryable
     public function lists($key, $value = null)
     {
         $result = $this->fetchAll('array');
-        $lists = [];
+        $lists = array();
 
         if (!empty ($result)) {
             foreach ($result as $data) {
@@ -894,20 +1216,96 @@ class Queryable
     }
 
     /**
+     * Executes sql query, all query is call this method
      * @param $sql
      * @param array $values
      * @return $this
      */
     public function query($sql, $values = array())
     {
+        $this->beforeQuery($sql, $values);
         $this->_lastSql = $sql;
         $this->_stmt = $this->_pdo->prepare($sql);
         $this->bindValues($values);
         $this->_stmt->execute();
+        $this->afterQuery($sql, $values);
+        self::$queryHistory[] = empty ($values) ? $sql : array($sql, $values);
 
         return $this;
     }
 
+    /**
+     * @return array
+     */
+    public static function getQueryHistory()
+    {
+        return self::$queryHistory;
+    }
+
+    /**
+     * Before query callback
+     * @param $sql
+     * @param array $values
+     */
+    protected function beforeQuery($sql, $values = array())
+    {
+
+    }
+
+    /**
+     * After query callback
+     * @param $sql
+     * @param array $values
+     */
+    protected function afterQuery($sql, $values = array())
+    {
+
+    }
+
+    /**
+     * Iterates all table records
+     * @param $callback
+     * @param int $chunkSize
+     * @throws \Exception
+     */
+    public function chunk($chunkSize = 200, $callback)
+    {
+        if (empty ($this->_table)) {
+            throw new \Exception('Table name is not specified');
+        }
+
+        if (!is_callable($callback)) {
+            throw new \Exception('Invalid $callback argument');
+        }
+
+        $offset = 0;
+        $limit = $chunkSize;
+        $entries = $this->table($this->_table)->get($limit, $offset);
+
+        while (!empty ($entries)) {
+            $callback($entries);
+
+            $offset += $limit;
+            $entries = $this->table($this->_table)->get($limit, $offset);
+        }
+    }
+
+    /**
+     * Iterates all table records
+     * @param $callback
+     * @param int $chunkSize Number of record for each query
+     * @throws \Exception
+     */
+    public function each($callback, $chunkSize = 1000)
+    {
+        $i = 0;
+        $this->chunk($chunkSize, function($entries) use ($callback, $i) {
+            foreach ($entries as $e) {
+                $callback($e, $i);
+                $i++;
+            }
+        });
+    }
 
     /**
      * @return null
@@ -943,15 +1341,11 @@ class Queryable
      * Binds values
      * @param array | null $values
      */
-    private function bindValues($values = null)
+    private function bindValues(array $values = array())
     {
-        if (is_array($values)) {
-            $_values = $values;
-        } else {
-            $_values = $this->values;
-        }
+        $this->values = $values;
 
-        foreach ($_values as $i => $value) {
+        foreach ($this->values as $i => &$value) {
             if (is_string($value)) {
                 $this->_stmt->bindValue($i + 1, $value, \PDO::PARAM_STR);
             } else if (is_int($value)) {
@@ -959,13 +1353,19 @@ class Queryable
             } else if ($value === null) {
                 $this->_stmt->bindValue($i + 1, null, \PDO::PARAM_NULL);
             } else {
+                if (is_array($value) || $value instanceof \stdClass) {
+                    $value = json_encode($value);
+                } else if ($value instanceof \DateTime) {
+                    $value = $value->format('Y-m-d H:i:s');
+                }
+
                 $this->_stmt->bindValue($i + 1, $value, \PDO::PARAM_STR);
             }
         }
     }
 
     /**
-     * @return null|\PDO
+     * @return \PDO
      */
     public function pdo()
     {
@@ -1032,12 +1432,99 @@ class Queryable
     }
 
     /**
+     * @param $value
+     * @param string $field
+     * @return mixed
+     * @throws \Exception
+     */
+    public function find($value, $field = 'id')
+    {
+        if (empty ($this->_table)) {
+            throw new \Exception('Table name is not specified');
+        }
+
+        return $this->table($this->_table)->where($field, $value)->first();
+    }
+
+    /**
+     * @param bool $fullScheme
+     * @return array
+     * @throws \Exception
+     */
+    public function scheme($fullScheme = false)
+    {
+        if (empty ($this->_table)) {
+            throw new \Exception('Table name is not specified');
+        }
+
+        $scheme = $this->query('SHOW COLUMNS FROM ' . $this->quoteColumn($this->_table))->get();
+
+        if ($fullScheme) {
+            return $scheme;
+        }
+
+        return array_map(function($item) { return $item->Field; }, $scheme);
+    }
+
+    /**
      * @param $obj
      * @return bool
      */
     private static function isRawObject($obj)
     {
         return is_object($obj) && isset ($obj->rawSql, $obj->sql, $obj->values);
+    }
+
+    /**
+     * Interpolate Query:  for debug only
+     * @return string The interpolated query
+     */
+    public function toInterpolatedSql() {
+        $query = $this->toSql();
+        $params = $this->values;
+
+        $keys = array();
+        $values = $params;
+
+        # build a regular expression for each parameter
+        foreach ($params as $key => $value) {
+            if (is_string($key)) {
+                $keys[] = '/:'.$key.'/';
+            } else {
+                $keys[] = '/[?]/';
+            }
+
+            if (is_string($value))
+                $values[$key] = "'" . self::quoteValue($value) . "'";
+
+            if (is_array($value))
+                $values[$key] = "'" . implode("','", self::quoteValue($value)) . "'";
+
+            if (is_null($value))
+                $values[$key] = 'NULL';
+        }
+
+        $query = preg_replace($keys, $values, $query, 1, $count);
+
+        return $query;
+    }
+
+    /**
+     * Quotes value, for debug only
+     * @param $inp
+     * @return array|mixed
+     */
+    public static function quoteValue($inp)
+    {
+        if (is_array($inp)){
+            return array_map(__METHOD__, $inp);
+        }
+
+        if (!empty($inp) && is_string($inp)) {
+            return str_replace(array('\\', "\0", "\n", "\r", "'", '"', "\x1a"), array('\\\\', '\\0', '\\n', '\\r', "\\'", '\\"', '\\Z'), $inp);
+        }
+
+        return $inp;
     }
 
     /**
@@ -1055,8 +1542,15 @@ class Queryable
 
             $field = H::camelCaseToUnderscore($match[2]);
             $method = $match[1];
+
+            if (count($arguments) > 1) {
+                return $this->$method($field, $arguments[0], $arguments[1]);
+            }
+
             return $this->$method($field, $arguments[0]);
         }
+
+        throw new \Exception('Method ' . static::class . '::' . $name . ' does not exist');
     }
 
 }
